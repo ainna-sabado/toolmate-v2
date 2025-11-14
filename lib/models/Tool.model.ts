@@ -1,8 +1,4 @@
-import mongoose, {
-  Schema,
-  InferSchemaType,
-  Model,
-} from "mongoose";
+import mongoose, { Schema, InferSchemaType, Model } from "mongoose";
 
 export const TOOL_STATUSES = [
   "available",
@@ -17,12 +13,9 @@ export const TOOL_STATUSES = [
 export type ToolStatus = (typeof TOOL_STATUSES)[number];
 
 export const AUDIT_STATUSES = ["present", "needsUpdate", "pending"] as const;
-
 export type AuditStatus = (typeof AUDIT_STATUSES)[number];
 
-// ---------------------------------------------
-// Notes Sub-schema
-// ---------------------------------------------
+// Notes sub-schema
 const NoteSchema = new Schema(
   {
     text: { type: String, trim: true },
@@ -32,14 +25,17 @@ const NoteSchema = new Schema(
 );
 
 // ---------------------------------------------
-// Main Tool Schema
+// UPDATED TOOL SCHEMA (brand + category added)
 // ---------------------------------------------
 const ToolSchema = new Schema(
   {
     // Identification
     name: { type: String, required: true, trim: true },
 
-    // eqNumber is now OPTIONAL
+    brand: { type: String, trim: true },         // <-- ADDED
+    category: { type: String, trim: true },      // <-- ADDED
+
+    // eqNumber is optional
     eqNumber: { type: String, trim: true },
 
     qty: { type: Number, default: 1 },
@@ -61,6 +57,7 @@ const ToolSchema = new Schema(
     lastAuditedAt: { type: Date, default: null },
 
     // Location
+    mainDepartment: { type: String, required: true, trim: true },
     mainStorageName: { type: String, required: true, trim: true },
     mainStorageCode: { type: String, required: true, trim: true },
     qrLocation: { type: String, required: true, trim: true },
@@ -78,5 +75,4 @@ const ToolSchema = new Schema(
 export type ToolDocument = InferSchemaType<typeof ToolSchema>;
 
 export const Tool: Model<ToolDocument> =
-  mongoose.models.Tool ||
-  mongoose.model<ToolDocument>("Tool", ToolSchema);
+  mongoose.models.Tool || mongoose.model<ToolDocument>("Tool", ToolSchema);

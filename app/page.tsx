@@ -11,7 +11,7 @@ export default function Homepage() {
       <div className="text-center mb-10">
         <h1 className="text-4xl font-bold mb-2">ToolMate</h1>
         <p className="text-gray-600">
-          Simple aviation tool tracking — Issue, Return, Audit.
+          Intelligent aviation tool tracking. Issue, return, and monitor tools with ease.
         </p>
       </div>
 
@@ -47,7 +47,7 @@ export default function Homepage() {
           <CardContent className="p-6 text-center">
             <Link href="/dashboard">
               <Button variant="secondary" className="w-full">
-                Dashboard
+                Main Storage Dashboards
               </Button>
             </Link>
           </CardContent>

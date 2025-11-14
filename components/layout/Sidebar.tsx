@@ -10,8 +10,11 @@ export default function Sidebar() {
         <Link href="/return-tools">Return Tools</Link>
         <Link href="/run-audit">Run Audit</Link>
         <Link href="/dashboard">Dashboard</Link>
+
+        {/* Newly added pages */}
         <Link href="/tools">Tools</Link>
         <Link href="/toolkits">ToolKits</Link>
+
         <Link href="/shadowboards">Shadowboards</Link>
         <Link href="/reports">Reports</Link>
       </nav>
