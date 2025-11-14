@@ -2,23 +2,14 @@ import mongoose, {
   Schema,
   InferSchemaType,
   Model,
-  Types,
 } from "mongoose";
 
-// ---------------------------------------------
-// 1. Audit Status Enum
-// ---------------------------------------------
 export const TOOLKIT_AUDIT_STATUSES = [
   "present",
   "needsUpdate",
   "pending",
 ] as const;
 
-export type ToolKitAuditStatus = (typeof TOOLKIT_AUDIT_STATUSES)[number];
-
-// ---------------------------------------------
-// 2. Notes Sub-schema
-// ---------------------------------------------
 const NoteSchema = new Schema(
   {
     text: { type: String, trim: true },
@@ -27,23 +18,36 @@ const NoteSchema = new Schema(
   { _id: false }
 );
 
-// ---------------------------------------------
-// 3. ToolKit Schema
-// ---------------------------------------------
+// Kit Contents
+const KitContentSchema = new Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    eqNumber: { type: String, trim: true },
+    qty: { type: Number, required: true, default: 1 },
+    calDate: { type: Date, default: null },
+    auditStatus: {
+      type: String,
+      enum: ["present", "needsUpdate", "pending"],
+      default: "pending",
+    }
+  },
+  { _id: true }
+);
+
 const ToolKitSchema = new Schema(
   {
-    // 1. Identification
+    // Identification
     name: { type: String, required: true, trim: true },
     kitNumber: { type: String, required: true, unique: true, trim: true },
     qrCode: { type: String, required: true, trim: true },
 
-    // 2. Location Tracking
+    // Location
     mainStorageName: { type: String, required: true, trim: true },
     mainStorageCode: { type: String, required: true, trim: true },
     qrLocation: { type: String, required: true, trim: true },
     storageType: { type: String, required: true, trim: true },
 
-    // 3. Audit Tracking
+    // Audit
     auditStatus: {
       type: String,
       enum: TOOLKIT_AUDIT_STATUSES,
@@ -51,28 +55,16 @@ const ToolKitSchema = new Schema(
     },
     lastAuditedAt: { type: Date, default: null },
 
-    // 4. Contents: Reference to Tool IDs
-    contents: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "Tool",
-      },
-    ],
+    // CONTENTS ARE NOW SUB-DOCUMENTS
+    contents: [KitContentSchema],
 
-    // 5. Notes
     notes: [NoteSchema],
   },
   { timestamps: true }
 );
 
-// ---------------------------------------------
-// 4. Infer TS Document Type
-// ---------------------------------------------
 export type ToolKitDocument = InferSchemaType<typeof ToolKitSchema>;
 
-// ---------------------------------------------
-// 5. Model Export (Next.js-safe)
-// ---------------------------------------------
 export const ToolKit: Model<ToolKitDocument> =
   mongoose.models.ToolKit ||
   mongoose.model<ToolKitDocument>("ToolKit", ToolKitSchema);

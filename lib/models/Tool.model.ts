@@ -2,12 +2,8 @@ import mongoose, {
   Schema,
   InferSchemaType,
   Model,
-  Types,
 } from "mongoose";
 
-// ---------------------------------------------
-// 1. Status Constants & Types
-// ---------------------------------------------
 export const TOOL_STATUSES = [
   "available",
   "in use",
@@ -25,20 +21,7 @@ export const AUDIT_STATUSES = ["present", "needsUpdate", "pending"] as const;
 export type AuditStatus = (typeof AUDIT_STATUSES)[number];
 
 // ---------------------------------------------
-// 2. Checkout Sub-schema (no _id)
-// ---------------------------------------------
-const CheckoutSchema = new Schema(
-  {
-    user: { type: String, trim: true },
-    employeeId: { type: String, trim: true },
-    deptSection: { type: String, trim: true },
-    date: { type: Date },
-  },
-  { _id: false }
-);
-
-// ---------------------------------------------
-// 3. Notes Sub-schema
+// Notes Sub-schema
 // ---------------------------------------------
 const NoteSchema = new Schema(
   {
@@ -49,15 +32,19 @@ const NoteSchema = new Schema(
 );
 
 // ---------------------------------------------
-// 4. Main Tool Schema
+// Main Tool Schema
 // ---------------------------------------------
 const ToolSchema = new Schema(
   {
-    // 1. Identification
+    // Identification
     name: { type: String, required: true, trim: true },
-    eqNumber: { type: String, required: true, unique: true, trim: true },
 
-    // 2. Status & Condition
+    // eqNumber is now OPTIONAL
+    eqNumber: { type: String, trim: true },
+
+    qty: { type: Number, default: 1 },
+
+    // Status
     status: {
       type: String,
       enum: TOOL_STATUSES,
@@ -65,7 +52,7 @@ const ToolSchema = new Schema(
     },
     dueDate: { type: Date, default: null },
 
-    // 3. Audit Tracking
+    // Audit
     auditStatus: {
       type: String,
       enum: AUDIT_STATUSES,
@@ -73,32 +60,23 @@ const ToolSchema = new Schema(
     },
     lastAuditedAt: { type: Date, default: null },
 
-    // 4. Location Tracking
+    // Location
     mainStorageName: { type: String, required: true, trim: true },
     mainStorageCode: { type: String, required: true, trim: true },
     qrLocation: { type: String, required: true, trim: true },
     storageType: { type: String, required: true, trim: true },
 
-    // 5. Checkout Tracking
-    checkout: { type: CheckoutSchema, default: null },
-
-    // 6. Maintenance & Notes
+    // Notes
     notes: [NoteSchema],
 
-    // 7. ToolKit Relationship
+    // Toolkit relationship (optional)
     toolKitId: { type: Schema.Types.ObjectId, ref: "ToolKit" },
   },
   { timestamps: true }
 );
 
-// ---------------------------------------------
-// 5. Infer TS Document Type
-// ---------------------------------------------
 export type ToolDocument = InferSchemaType<typeof ToolSchema>;
 
-// ---------------------------------------------
-// 6. Model Export (Next.js-safe)
-// ---------------------------------------------
 export const Tool: Model<ToolDocument> =
   mongoose.models.Tool ||
   mongoose.model<ToolDocument>("Tool", ToolSchema);
