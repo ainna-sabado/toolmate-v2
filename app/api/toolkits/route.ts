@@ -19,14 +19,47 @@ export async function GET(req: Request) {
     if (qrLocation) filters.qrLocation = qrLocation;
     if (storageType) filters.storageType = storageType;
 
+    // --------------------------------------------------------
+    // Fetch toolkits
+    // --------------------------------------------------------
     const toolkits = await ToolKitService.lookupToolKits(filters);
 
-    return NextResponse.json({ toolkits });
+    // If nothing returned, prevent crash
+    if (!toolkits || !Array.isArray(toolkits)) {
+      return NextResponse.json({
+        toolkits: [],
+        storageLocations: [],
+      });
+    }
+
+    // --------------------------------------------------------
+    // Build unique storage locations SAFELY
+    // --------------------------------------------------------
+    const storageMap = new Map();
+
+    toolkits.forEach((kit: any) => {
+      if (
+        kit &&
+        kit.mainStorageName &&
+        typeof kit.mainStorageName === "string"
+      ) {
+        storageMap.set(kit.mainStorageName, {
+          mainStorageName: kit.mainStorageName,
+          mainStorageCode: kit.mainStorageCode || "",
+          storageType: kit.storageType || "",
+        });
+      }
+    });
+
+    const storageLocations = Array.from(storageMap.values());
+
+    return NextResponse.json({
+      toolkits,
+      storageLocations,
+    });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message },
-      { status: 500 }
-    );
+    console.error("❌ Toolkit API Error:", err.message);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -39,9 +72,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(toolkit, { status: 201 });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message },
-      { status: 400 }
-    );
+    console.error("❌ Toolkit POST Error:", err.message);
+    return NextResponse.json({ error: err.message }, { status: 400 });
   }
 }

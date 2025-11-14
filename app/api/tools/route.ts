@@ -53,6 +53,33 @@ export async function GET(req: Request) {
       });
     }
 
+    // -----------------------------------------------------
+    // LOAD UNIQUE QR LOCATIONS BASED ON SELECTED STORAGE
+    // -----------------------------------------------------
+    const loadQrLocations = async (storageName: string) => {
+      if (!mainDepartment || !storageName) return;
+
+      try {
+        const res = await fetch(
+          `/api/tools?mainDepartment=${encodeURIComponent(
+            mainDepartment
+          )}&mainStorageName=${encodeURIComponent(storageName)}`
+        );
+
+        const data = await res.json();
+        const tools = data.tools || [];
+
+        const uniq = new Set<string>();
+        tools.forEach((tool: any) => {
+          if (tool.qrLocation) uniq.add(tool.qrLocation);
+        });
+
+        setQrLocations([...uniq]);
+      } catch (err) {
+        console.error("Error loading QR locations", err);
+      }
+    };
+
     // ---------------------------------------------
     // NORMAL TOOL LOOKUP MODE
     // ---------------------------------------------
@@ -67,10 +94,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ tools });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -83,9 +107,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json(tool, { status: 201 });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: err.message }, { status: 400 });
   }
 }

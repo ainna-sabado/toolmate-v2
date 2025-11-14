@@ -15,6 +15,9 @@ import {
   TableCell,
 } from "@/components/ui/table";
 
+// -----------------------------------------------------
+// TYPES
+// -----------------------------------------------------
 type Tool = {
   _id: string;
   name: string;
@@ -34,8 +37,12 @@ type Tool = {
 type StorageInfo = {
   mainStorageName: string;
   mainStorageCode: string;
+  storageType: string;
 };
 
+// -----------------------------------------------------
+// COMPONENT
+// -----------------------------------------------------
 export default function ToolsPage() {
   const { mainDepartment } = useDepartment();
 
@@ -60,29 +67,64 @@ export default function ToolsPage() {
     mainStorageName: "",
     mainStorageCode: "",
     qrLocation: "",
-    storageType: "shelf",
+    storageType: "",
   });
 
   // -----------------------------------------------------
-  // LOAD UNIQUE STORAGE LIST FROM API
+  // LOAD TOOLS FOR SELECTED DEPARTMENT
+  // -----------------------------------------------------
+  const fetchTools = async () => {
+    if (!mainDepartment) return;
+
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/tools?mainDepartment=${encodeURIComponent(mainDepartment)}`
+      );
+      const data = await res.json();
+      setTools(data.tools || []);
+    } catch (err) {
+      console.error("Failed to fetch tools", err);
+      setError("Failed to load tools.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // -----------------------------------------------------
+  // LOAD UNIQUE STORAGE LOCATIONS FROM TOOLS
   // -----------------------------------------------------
   const loadStorages = async () => {
     if (!mainDepartment) return;
 
     try {
       const res = await fetch(
-        `/api/tools?mainDepartment=${encodeURIComponent(
-          mainDepartment
-        )}&storages=1`
+        `/api/tools?mainDepartment=${encodeURIComponent(mainDepartment)}`
       );
-
       const data = await res.json();
-      setStorages(data.storages || []);
+      const tools = data.tools || [];
+
+      const map = new Map();
+
+      tools.forEach((tool: any) => {
+        if (tool.mainStorageName) {
+          map.set(tool.mainStorageName, {
+            mainStorageName: tool.mainStorageName,
+            mainStorageCode: tool.mainStorageCode,
+            storageType: tool.storageType,
+          });
+        }
+      });
+
+      setStorages(Array.from(map.values()));
     } catch (err) {
-      console.error("Error loading storages", err);
+      console.error("Error loading storages:", err);
     }
   };
 
+  // -----------------------------------------------------
+  // LOAD UNIQUE QR LOCATIONS BASED ON SELECTED STORAGE
+  // -----------------------------------------------------
   const loadQrLocations = async (storageName: string) => {
     if (!mainDepartment || !storageName) return;
 
@@ -96,41 +138,19 @@ export default function ToolsPage() {
       const data = await res.json();
       const tools = data.tools || [];
 
-      // Extract unique QR locations
-      const unique = new Set<string>();
+      const uniq = new Set<string>();
       tools.forEach((tool: any) => {
-        if (tool.qrLocation) unique.add(tool.qrLocation);
+        if (tool.qrLocation) uniq.add(tool.qrLocation);
       });
 
-      setQrLocations([...unique]);
+      setQrLocations([...uniq]);
     } catch (err) {
-      console.error("Failed to load QR locations", err);
+      console.error("Error loading QR locations", err);
     }
   };
 
   // -----------------------------------------------------
-  // LOAD TOOLS BASED ON DEPARTMENT
-  // -----------------------------------------------------
-  const fetchTools = async () => {
-    if (!mainDepartment) return;
-
-    setLoading(true);
-    try {
-      const res = await fetch(
-        `/api/tools?mainDepartment=${encodeURIComponent(mainDepartment)}`
-      );
-      const data = await res.json();
-      setTools(data.tools || []);
-    } catch (err) {
-      console.error("Error loading tools", err);
-      setError("Failed to fetch tools.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // -----------------------------------------------------
-  // TRIGGER LOADS WHEN DEPARTMENT CHANGES
+  // LOAD TOOLS + STORAGE LIST WHEN DEPARTMENT CHANGES
   // -----------------------------------------------------
   useEffect(() => {
     if (mainDepartment) {
@@ -140,7 +160,7 @@ export default function ToolsPage() {
   }, [mainDepartment]);
 
   // -----------------------------------------------------
-  // AUTO-FILL mainStorageCode WHEN SELECTING STORAGE NAME
+  // AUTO-FILL storageCode + storageType
   // -----------------------------------------------------
   useEffect(() => {
     const selected = storages.find(
@@ -150,13 +170,14 @@ export default function ToolsPage() {
     setForm((prev) => ({
       ...prev,
       mainStorageCode: selected?.mainStorageCode || "",
+      storageType: selected?.storageType || "",
     }));
 
     loadQrLocations(form.mainStorageName);
   }, [form.mainStorageName, storages]);
 
   // -----------------------------------------------------
-  // HANDLE FORM INPUT
+  // FORM INPUT HANDLER
   // -----------------------------------------------------
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -166,11 +187,10 @@ export default function ToolsPage() {
   };
 
   // -----------------------------------------------------
-  // SUBMIT FORM
+  // SUBMIT NEW TOOL
   // -----------------------------------------------------
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!mainDepartment) return;
 
     setSubmitting(true);
@@ -199,10 +219,7 @@ export default function ToolsPage() {
       });
 
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Error saving tool");
-      }
+      if (!res.ok) throw new Error(data.error);
 
       setSuccess("Tool created successfully!");
 
@@ -216,11 +233,11 @@ export default function ToolsPage() {
         mainStorageName: "",
         mainStorageCode: "",
         qrLocation: "",
-        storageType: "shelf",
+        storageType: "",
       });
 
-      fetchTools(); // reload list
-      loadStorages(); // reload storage list in case a new one was created
+      fetchTools();
+      loadStorages();
     } catch (err: any) {
       setError(err.message || "Error creating tool.");
     } finally {
@@ -229,7 +246,7 @@ export default function ToolsPage() {
   };
 
   // -----------------------------------------------------
-  // IF NO DEPARTMENT SELECTED
+  // NO DEPARTMENT SELECTED
   // -----------------------------------------------------
   if (!mainDepartment) {
     return (
@@ -241,10 +258,11 @@ export default function ToolsPage() {
   }
 
   // -----------------------------------------------------
-  // PAGE UI
+  // UI
   // -----------------------------------------------------
   return (
     <div className="max-w-6xl mx-auto py-8 space-y-8">
+      
       {/* ----------------------------------------------- */}
       {/* ADD TOOL FORM */}
       {/* ----------------------------------------------- */}
@@ -252,48 +270,37 @@ export default function ToolsPage() {
         <CardHeader>
           <CardTitle>Add Tool ({mainDepartment})</CardTitle>
         </CardHeader>
+
         <CardContent>
           <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
-            {/* NAME */}
+
+            {/* Name */}
             <div className="md:col-span-2">
               <label className="text-sm block mb-1">Name *</label>
-              <Input
-                name="name"
-                value={form.name}
-                onChange={handleChange}
-                required
-              />
+              <Input name="name" value={form.name} onChange={handleChange} required />
             </div>
 
-            {/* BRAND */}
+            {/* Brand */}
             <div>
               <label className="text-sm block mb-1">Brand</label>
               <Input name="brand" value={form.brand} onChange={handleChange} />
             </div>
 
-            {/* CATEGORY */}
+            {/* Category */}
             <div>
               <label className="text-sm block mb-1">Category</label>
-              <Input
-                name="category"
-                value={form.category}
-                onChange={handleChange}
-              />
+              <Input name="category" value={form.category} onChange={handleChange} />
             </div>
 
-            {/* EQ NUMBER */}
+            {/* Eq Number */}
             <div>
               <label className="text-sm block mb-1">Eq Number</label>
-              <Input
-                name="eqNumber"
-                value={form.eqNumber}
-                onChange={handleChange}
-              />
+              <Input name="eqNumber" value={form.eqNumber} onChange={handleChange} />
             </div>
 
-            {/* QTY */}
+            {/* Qty */}
             <div>
-              <label className="text-sm block mb-1">Quantity</label>
+              <label className="text-sm block mb-1">Quantity *</label>
               <Input
                 name="qty"
                 type="number"
@@ -303,7 +310,7 @@ export default function ToolsPage() {
               />
             </div>
 
-            {/* MAIN STORAGE NAME */}
+            {/* Main Storage Dropdown */}
             <div>
               <label className="text-sm block mb-1">Main Storage *</label>
               <select
@@ -322,21 +329,20 @@ export default function ToolsPage() {
               </select>
             </div>
 
-            {/* MAIN STORAGE CODE (AUTO, LOCKED) */}
+            {/* Main Storage Code (auto) */}
             <div>
               <label className="text-sm block mb-1">Storage Code</label>
               <Input
                 name="mainStorageCode"
                 value={form.mainStorageCode}
-                disabled
+                readOnly
                 className="bg-gray-100 text-gray-500"
               />
             </div>
 
-            {/* QR LOCATION */}
+            {/* QR Location */}
             <div>
               <label className="text-sm block mb-1">QR Location *</label>
-
               <select
                 name="qrLocation"
                 value={form.qrLocation}
@@ -346,39 +352,37 @@ export default function ToolsPage() {
               >
                 <option value="">Select QR Location</option>
                 {qrLocations.map((qr) => (
-                  <option key={qr} value={qr}>
-                    {qr}
-                  </option>
+                  <option key={qr} value={qr}>{qr}</option>
                 ))}
               </select>
             </div>
 
-            {/* STORAGE TYPE */}
+            {/* Storage Type (auto) */}
             <div>
               <label className="text-sm block mb-1">Storage Type *</label>
-              <select
+              <Input
                 name="storageType"
-                value={form.storageType}
-                onChange={handleChange}
-                className="border rounded-md px-3 py-2 w-full text-sm"
-              >
-                <option value="shelf">Shelf</option>
-                <option value="roll cab">Roll Cab</option>
-                <option value="bin">Bin</option>
-                <option value="cart">Cart</option>
-              </select>
+                value={
+                  form.storageType
+                    ? form.storageType.charAt(0).toUpperCase() +
+                      form.storageType.slice(1).toLowerCase()
+                    : ""
+                }
+                readOnly
+                className="bg-gray-100 text-gray-500"
+              />
             </div>
 
-            {/* SUBMIT */}
+            {/* Submit */}
             <div className="md:col-span-2 flex gap-4 items-center">
               <Button type="submit" disabled={submitting}>
                 {submitting ? "Saving..." : "Save Tool"}
               </Button>
 
               {success && <p className="text-green-600 text-sm">{success}</p>}
-
               {error && <p className="text-red-500 text-sm">{error}</p>}
             </div>
+
           </form>
         </CardContent>
       </Card>
@@ -390,6 +394,7 @@ export default function ToolsPage() {
         <CardHeader>
           <CardTitle>Tools — {mainDepartment}</CardTitle>
         </CardHeader>
+
         <CardContent>
           {loading ? (
             <p>Loading...</p>
@@ -430,6 +435,7 @@ export default function ToolsPage() {
           )}
         </CardContent>
       </Card>
+
     </div>
   );
 }
