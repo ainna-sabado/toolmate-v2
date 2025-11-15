@@ -11,20 +11,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
 
-      {/* HEADER (fixed) */}
       <Header onMenuClick={() => setSidebarOpen(true)} />
-
-      {/* SIDEBAR DRAWER */}
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* MAIN CONTENT */}
-      <main className="flex-1 pt-16"> 
+      {/* MAIN */}
+      <main
+        className="
+          flex-1
+          pt-[110px]     /* Taller header on mobile (2-row) */
+          md:pt-[72px]   /* Exact height for desktop */
+        "
+      >
         <div className="container mx-auto p-4 sm:p-6 lg:p-8">
           {children}
         </div>
       </main>
 
-      {/* FOOTER */}
       <Footer />
     </div>
   );

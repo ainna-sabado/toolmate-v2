@@ -8,13 +8,20 @@ import DepartmentSelector from "./DepartmentSelector";
 
 export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
   const { mainDepartment } = useDepartment();
-  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-30 border-b bg-white p-4 flex items-center justify-between">
-
-        {/* LEFT SIDE: HAMBURGER + TITLE */}
+      <header
+        className="
+          fixed top-0 left-0 right-0 z-30 
+          border-b bg-white px-4 py-3 
+          flex flex-col 
+          md:flex-row md:items-center md:justify-between
+          gap-2 md:gap-0
+        "
+      >
+        {/* LEFT SECTION — hamburger + title */}
         <div className="flex items-center gap-3">
           <button
             onClick={onMenuClick}
@@ -23,18 +30,22 @@ export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
             <Menu className="w-6 h-6" />
           </button>
 
-          {/* TITLE → CLICK TO HOME */}
           <Link href="/">
-            <h1 className="text-xl font-bold cursor-pointer hover:text-blue-600 transition">
+            <h1 className="text-lg md:text-xl font-bold hover:text-blue-600 transition cursor-pointer">
               ToolMate
             </h1>
           </Link>
         </div>
 
-        {/* RIGHT SIDE: DEPARTMENT + SETTINGS */}
-        <div className="flex items-center gap-3">
+        {/* RIGHT SECTION — Dept + Settings */}
+        <div className="flex items-center gap-3 md:gap-4 justify-end">
           {mainDepartment && (
-            <span className="px-3 py-1 bg-gray-200 rounded-md text-sm font-medium">
+            <span
+              className="
+                px-3 py-1 rounded-md text-sm font-medium bg-gray-200 
+                md:order-0
+              "
+            >
               {mainDepartment}
             </span>
           )}
@@ -48,7 +59,6 @@ export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
         </div>
       </header>
 
-      {/* SETTINGS DRAWER */}
       <DepartmentSelector open={settingsOpen} setOpen={setSettingsOpen} />
     </>
   );
