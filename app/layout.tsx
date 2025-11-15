@@ -1,5 +1,3 @@
-"use client";
-
 import "./globals.css";
 import { useState } from "react";
 import { DepartmentProvider } from "@/context/DepartmentContext";
@@ -7,7 +5,11 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 
-export default function RootLayout({ children }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
