@@ -1,5 +1,5 @@
 import mongoose, { Schema, InferSchemaType, Model } from "mongoose";
-import { v4 as uuidv4 } from "uuid";
+import crypto from "crypto";
 
 // ---------------------------------------------------
 // 1. Role list (machine-friendly identifiers)
@@ -50,8 +50,18 @@ const EmployeeSchema = new Schema(
 // ---------------------------------------------------
 EmployeeSchema.pre("save", function (next) {
   if (!this.qrCodeValue) {
-    this.qrCodeValue = uuidv4();
+    const employeeId = this.employeeId;
+    const timestamp = Date.now();
+
+    const payload = `${employeeId}.${timestamp}`;
+    const signature = crypto
+      .createHmac("sha512", process.env.QR_SECRET!)
+      .update(payload)
+      .digest("hex");
+
+    this.qrCodeValue = `${payload}.${signature}`;
   }
+
   next();
 });
 

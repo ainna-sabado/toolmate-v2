@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     // Convert all roles to lowercase, trim, unify
     roles = roles
       .map((r: string) => r.toLowerCase().trim())
-      .map((r: string) => r.replace(/\s+/g, "-")); // spaces → hyphens
+      .map((r: string) => r.replace(/\s+/g, "-")); 
 
     // Remove duplicates
     roles = [...new Set(roles)];
