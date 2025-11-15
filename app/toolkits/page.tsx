@@ -23,6 +23,17 @@ import {
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
 
+type KitContentItem = {
+  _id: string;
+  name: string;
+  brand?: string;
+  category?: string;
+  eqNumber?: string;
+  qty: number;
+  calDate?: string | null;
+  auditStatus: string;
+};
+
 export default function ToolKitsPage() {
   const { mainDepartment } = useDepartment();
 
@@ -442,7 +453,9 @@ export default function ToolKitsPage() {
                         <TableRow>
                           <TableCell colSpan={6}>
                             <div className="bg-muted/40 p-4 rounded-md">
-                              <h4 className="font-semibold mb-3">Kit Contents</h4>
+                              <h4 className="font-semibold mb-3">
+                                Kit Contents
+                              </h4>
 
                               {/* CONTENT LIST */}
                               {kit.contents.length === 0 ? (
@@ -464,21 +477,33 @@ export default function ToolKitsPage() {
                                   </TableHeader>
 
                                   <TableBody>
-                                    {kit.contents.map((item) => (
-                                      <TableRow key={item._id}>
-                                        <TableCell>{item.name}</TableCell>
-                                        <TableCell>{item.brand || "-"}</TableCell>
-                                        <TableCell>{item.category || "-"}</TableCell>
-                                        <TableCell>{item.eqNumber || "-"}</TableCell>
-                                        <TableCell>{item.qty}</TableCell>
-                                        <TableCell>
-                                          {item.calDate
-                                            ? new Date(item.calDate).toLocaleDateString()
-                                            : "-"}
-                                        </TableCell>
-                                        <TableCell>{item.auditStatus}</TableCell>
-                                      </TableRow>
-                                    ))}
+                                    {kit.contents.map(
+                                      (item: KitContentItem) => (
+                                        <TableRow key={item._id}>
+                                          <TableCell>{item.name}</TableCell>
+                                          <TableCell>
+                                            {item.brand || "-"}
+                                          </TableCell>
+                                          <TableCell>
+                                            {item.category || "-"}
+                                          </TableCell>
+                                          <TableCell>
+                                            {item.eqNumber || "-"}
+                                          </TableCell>
+                                          <TableCell>{item.qty}</TableCell>
+                                          <TableCell>
+                                            {item.calDate
+                                              ? new Date(
+                                                  item.calDate
+                                                ).toLocaleDateString()
+                                              : "-"}
+                                          </TableCell>
+                                          <TableCell>
+                                            {item.auditStatus}
+                                          </TableCell>
+                                        </TableRow>
+                                      )
+                                    )}
                                   </TableBody>
                                 </Table>
                               )}
@@ -496,7 +521,9 @@ export default function ToolKitsPage() {
                               )}
 
                               {/* ADD CONTENT */}
-                              <h4 className="font-semibold mb-2">Add New Content</h4>
+                              <h4 className="font-semibold mb-2">
+                                Add New Content
+                              </h4>
 
                               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                                 <Input
