@@ -16,7 +16,9 @@ const Scanner = dynamic(
 
 export default function AdminAccessGate() {
   const router = useRouter();
-  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
+  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(
+    null
+  );
   const [mounted, setMounted] = useState(false);
   const [processing, setProcessing] = useState(false);
 
@@ -57,7 +59,6 @@ export default function AdminAccessGate() {
         return;
       }
 
-      // Create secure admin session
       await fetch("/api/admin/session/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -97,9 +98,19 @@ export default function AdminAccessGate() {
               onScan={handleScan}
               onError={(err: any) => console.error("SCAN ERROR:", err)}
               constraints={{
-                facingMode: "environment", // correct MediaTrackConstraints format
+                facingMode: "environment",
               }}
-              style={{ width: "100%", height: "100%" }}
+              styles={{
+                container: {
+                  width: "100%",
+                  height: "100%",
+                },
+                video: {
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                },
+              }}
             />
           </div>
 
