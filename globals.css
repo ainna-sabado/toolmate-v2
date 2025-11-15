@@ -1,0 +1,25 @@
+/* ========================================= */
+/* GLOBAL RESPONSIVE TYPOGRAPHY */
+/* ========================================= */
+
+/* Make all text responsive */
+html {
+  font-size: 14px;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+/* ========================================= */
+/* FORM ELEMENTS GLOBAL DEFAULTS */
+/* ========================================= */
+
+/* All inputs and buttons full-width on mobile */
+input,
+button,
+select {
+  width: 100%;
+}

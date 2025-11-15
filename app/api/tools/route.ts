@@ -1,41 +1,29 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/config/db";
 import { Tool } from "@/lib/models/Tool.model";
+import { buildFilters } from "@/lib/utils/buildFilters";
+import { mapStorages } from "@/lib/utils/storageMapper";
 
 export async function GET(req: Request) {
   try {
     await connectDB();
 
-    const { searchParams } = new URL(req.url);
-    const mainDepartment = searchParams.get("mainDepartment");
-    const mainStorageName = searchParams.get("mainStorageName");
-    const storagesOnly = searchParams.get("storages");
+    const params = new URL(req.url).searchParams;
+    const filters = buildFilters(params);
 
-    const filters: any = {};
-    if (mainDepartment) filters.mainDepartment = mainDepartment;
-    if (mainStorageName) filters.mainStorageName = mainStorageName;
+    const storagesOnly = params.get("storages") === "1";
 
     const tools = await Tool.find(filters).lean();
 
-    // Return unique storage list if requested
-    if (storagesOnly === "1") {
-      const map = new Map();
-
-      tools.forEach((tool: any) => {
-        if (tool.mainStorageName) {
-          map.set(tool.mainStorageName, {
-            mainStorageName: tool.mainStorageName,
-            mainStorageCode: tool.mainStorageCode,
-            storageType: tool.storageType,
-          });
-        }
-      });
-
-      return NextResponse.json({ storages: Array.from(map.values()) });
+    // When client only wants distinct storages
+    if (storagesOnly) {
+      const storages = mapStorages(tools);
+      return NextResponse.json({ storages });
     }
 
     return NextResponse.json({ tools });
   } catch (err: any) {
+    console.error("❌ GET /api/tools error:", err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
@@ -44,12 +32,12 @@ export async function POST(req: Request) {
   try {
     await connectDB();
 
-    const body = await req.json();
-
-    const tool = await Tool.create(body);
+    const data = await req.json();
+    const tool = await Tool.create(data);
 
     return NextResponse.json(tool, { status: 201 });
   } catch (err: any) {
+    console.error("❌ POST /api/tools error:", err.message);
     return NextResponse.json({ error: err.message }, { status: 400 });
   }
 }

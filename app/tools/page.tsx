@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useDepartment } from "@/context/DepartmentContext";
+
+import { useTools } from "@/hooks/useTools";
+import { useStorage } from "@/hooks/useStorage";
+import { useToolMeta } from "@/hooks/useToolMeta";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
 import {
   Table,
   TableHeader,
@@ -15,49 +20,22 @@ import {
   TableCell,
 } from "@/components/ui/table";
 
-// -----------------------------------------------------
-// TYPES
-// -----------------------------------------------------
-type Tool = {
-  _id: string;
-  name: string;
-  brand?: string;
-  category?: string;
-  eqNumber?: string;
-  qty?: number;
-  status?: string;
-  auditStatus?: string;
-  mainStorageName: string;
-  mainStorageCode: string;
-  qrLocation: string;
-  storageType: string;
-  mainDepartment: string;
-};
+// 👍 If using shadcn Combobox
+import { Combobox } from "@/components/ui/combobox";
 
-type StorageInfo = {
-  mainStorageName: string;
-  mainStorageCode: string;
-  storageType: string;
-};
-
-// -----------------------------------------------------
-// COMPONENT
-// -----------------------------------------------------
 export default function ToolsPage() {
   const { mainDepartment } = useDepartment();
 
-  const [tools, setTools] = useState<Tool[]>([]);
-  const [storages, setStorages] = useState<StorageInfo[]>([]);
-  const [qrLocations, setQrLocations] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  // HOOKS
+  const { tools, loading, refresh: refreshTools } = useTools(mainDepartment);
+  const { storages, qrLocations, loadQrLocations } = useStorage(mainDepartment);
+  const { brands, categories } = useToolMeta();
 
+  // FORM
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // -----------------------------------------------------
-  // FORM STATE
-  // -----------------------------------------------------
   const [form, setForm] = useState({
     name: "",
     brand: "",
@@ -70,98 +48,7 @@ export default function ToolsPage() {
     storageType: "",
   });
 
-  // -----------------------------------------------------
-  // LOAD TOOLS FOR SELECTED DEPARTMENT
-  // -----------------------------------------------------
-  const fetchTools = async () => {
-    if (!mainDepartment) return;
-
-    setLoading(true);
-    try {
-      const res = await fetch(
-        `/api/tools?mainDepartment=${encodeURIComponent(mainDepartment)}`
-      );
-      const data = await res.json();
-      setTools(data.tools || []);
-    } catch (err) {
-      console.error("Failed to fetch tools", err);
-      setError("Failed to load tools.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // -----------------------------------------------------
-  // LOAD UNIQUE STORAGE LOCATIONS FROM TOOLS
-  // -----------------------------------------------------
-  const loadStorages = async () => {
-    if (!mainDepartment) return;
-
-    try {
-      const res = await fetch(
-        `/api/tools?mainDepartment=${encodeURIComponent(mainDepartment)}`
-      );
-      const data = await res.json();
-      const tools = data.tools || [];
-
-      const map = new Map();
-
-      tools.forEach((tool: any) => {
-        if (tool.mainStorageName) {
-          map.set(tool.mainStorageName, {
-            mainStorageName: tool.mainStorageName,
-            mainStorageCode: tool.mainStorageCode,
-            storageType: tool.storageType,
-          });
-        }
-      });
-
-      setStorages(Array.from(map.values()));
-    } catch (err) {
-      console.error("Error loading storages:", err);
-    }
-  };
-
-  // -----------------------------------------------------
-  // LOAD UNIQUE QR LOCATIONS BASED ON SELECTED STORAGE
-  // -----------------------------------------------------
-  const loadQrLocations = async (storageName: string) => {
-    if (!mainDepartment || !storageName) return;
-
-    try {
-      const res = await fetch(
-        `/api/tools?mainDepartment=${encodeURIComponent(
-          mainDepartment
-        )}&mainStorageName=${encodeURIComponent(storageName)}`
-      );
-
-      const data = await res.json();
-      const tools = data.tools || [];
-
-      const uniq = new Set<string>();
-      tools.forEach((tool: any) => {
-        if (tool.qrLocation) uniq.add(tool.qrLocation);
-      });
-
-      setQrLocations([...uniq]);
-    } catch (err) {
-      console.error("Error loading QR locations", err);
-    }
-  };
-
-  // -----------------------------------------------------
-  // LOAD TOOLS + STORAGE LIST WHEN DEPARTMENT CHANGES
-  // -----------------------------------------------------
-  useEffect(() => {
-    if (mainDepartment) {
-      fetchTools();
-      loadStorages();
-    }
-  }, [mainDepartment]);
-
-  // -----------------------------------------------------
-  // AUTO-FILL storageCode + storageType
-  // -----------------------------------------------------
+  // Auto-fill storageCode + storageType when selecting a storage
   useEffect(() => {
     const selected = storages.find(
       (s) => s.mainStorageName === form.mainStorageName
@@ -174,21 +61,15 @@ export default function ToolsPage() {
     }));
 
     loadQrLocations(form.mainStorageName);
-  }, [form.mainStorageName, storages]);
+  }, [form.mainStorageName, storages, loadQrLocations]);
 
-  // -----------------------------------------------------
-  // FORM INPUT HANDLER
-  // -----------------------------------------------------
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
+  // FORM HANDLER
+  const handleChange = (e: any) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  // -----------------------------------------------------
   // SUBMIT NEW TOOL
-  // -----------------------------------------------------
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!mainDepartment) return;
@@ -198,13 +79,12 @@ export default function ToolsPage() {
     setError(null);
 
     try {
-      const payload = {
+      const payload: any = {
         name: form.name.trim(),
         brand: form.brand.trim() || undefined,
         category: form.category.trim() || undefined,
         eqNumber: form.eqNumber.trim() || undefined,
         qty: Number(form.qty) || 1,
-
         mainDepartment,
         mainStorageName: form.mainStorageName,
         mainStorageCode: form.mainStorageCode,
@@ -221,7 +101,7 @@ export default function ToolsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      setSuccess("Tool created successfully!");
+      setSuccess("Tool created successfully.");
 
       // Reset form
       setForm({
@@ -236,18 +116,15 @@ export default function ToolsPage() {
         storageType: "",
       });
 
-      fetchTools();
-      loadStorages();
+      refreshTools();
     } catch (err: any) {
-      setError(err.message || "Error creating tool.");
+      setError(err.message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // -----------------------------------------------------
-  // NO DEPARTMENT SELECTED
-  // -----------------------------------------------------
+  // NO DEPARTMENT
   if (!mainDepartment) {
     return (
       <div className="p-8 text-center text-gray-500">
@@ -257,15 +134,11 @@ export default function ToolsPage() {
     );
   }
 
-  // -----------------------------------------------------
-  // UI
-  // -----------------------------------------------------
   return (
     <div className="max-w-6xl mx-auto py-8 space-y-8">
-      
-      {/* ----------------------------------------------- */}
+      {/* ------------------------------------------------ */}
       {/* ADD TOOL FORM */}
-      {/* ----------------------------------------------- */}
+      {/* ------------------------------------------------ */}
       <Card>
         <CardHeader>
           <CardTitle>Add Tool ({mainDepartment})</CardTitle>
@@ -273,46 +146,70 @@ export default function ToolsPage() {
 
         <CardContent>
           <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
-
             {/* Name */}
             <div className="md:col-span-2">
-              <label className="text-sm block mb-1">Name *</label>
-              <Input name="name" value={form.name} onChange={handleChange} required />
+              <label className="text-sm mb-1 block">Name *</label>
+              <Input
+                name="name"
+                value={form.name}
+                onChange={handleChange}
+                required
+              />
             </div>
 
-            {/* Brand */}
+            {/* Brand with Combobox */}
             <div>
-              <label className="text-sm block mb-1">Brand</label>
-              <Input name="brand" value={form.brand} onChange={handleChange} />
+              <label className="text-sm mb-1 block">Brand</label>
+              <Combobox
+                value={form.brand}
+                onValueChange={(v) =>
+                  setForm((prev) => ({ ...prev, brand: v }))
+                }
+                options={brands}
+                allowCustom
+                placeholder="Select or type a brand"
+              />
             </div>
 
-            {/* Category */}
+            {/* Category with Combobox */}
             <div>
-              <label className="text-sm block mb-1">Category</label>
-              <Input name="category" value={form.category} onChange={handleChange} />
+              <label className="text-sm mb-1 block">Category</label>
+              <Combobox
+                value={form.category}
+                onValueChange={(v) =>
+                  setForm((prev) => ({ ...prev, category: v }))
+                }
+                options={categories}
+                allowCustom
+                placeholder="Select or type a category"
+              />
             </div>
 
             {/* Eq Number */}
             <div>
-              <label className="text-sm block mb-1">Eq Number</label>
-              <Input name="eqNumber" value={form.eqNumber} onChange={handleChange} />
+              <label className="text-sm mb-1 block">Eq Number</label>
+              <Input
+                name="eqNumber"
+                value={form.eqNumber}
+                onChange={handleChange}
+              />
             </div>
 
-            {/* Qty */}
+            {/* Quantity */}
             <div>
-              <label className="text-sm block mb-1">Quantity *</label>
+              <label className="text-sm mb-1 block">Quantity *</label>
               <Input
                 name="qty"
                 type="number"
-                min={1}
+                min="1"
                 value={form.qty}
                 onChange={handleChange}
               />
             </div>
 
-            {/* Main Storage Dropdown */}
+            {/* Storage selection */}
             <div>
-              <label className="text-sm block mb-1">Main Storage *</label>
+              <label className="text-sm mb-1 block">Main Storage *</label>
               <select
                 name="mainStorageName"
                 value={form.mainStorageName}
@@ -329,9 +226,9 @@ export default function ToolsPage() {
               </select>
             </div>
 
-            {/* Main Storage Code (auto) */}
+            {/* Autoload Storage Code */}
             <div>
-              <label className="text-sm block mb-1">Storage Code</label>
+              <label className="text-sm mb-1 block">Storage Code</label>
               <Input
                 name="mainStorageCode"
                 value={form.mainStorageCode}
@@ -342,7 +239,7 @@ export default function ToolsPage() {
 
             {/* QR Location */}
             <div>
-              <label className="text-sm block mb-1">QR Location *</label>
+              <label className="text-sm mb-1 block">QR Location *</label>
               <select
                 name="qrLocation"
                 value={form.qrLocation}
@@ -352,22 +249,19 @@ export default function ToolsPage() {
               >
                 <option value="">Select QR Location</option>
                 {qrLocations.map((qr) => (
-                  <option key={qr} value={qr}>{qr}</option>
+                  <option key={qr} value={qr}>
+                    {qr}
+                  </option>
                 ))}
               </select>
             </div>
 
-            {/* Storage Type (auto) */}
+            {/* Storage Type */}
             <div>
-              <label className="text-sm block mb-1">Storage Type *</label>
+              <label className="text-sm mb-1 block">Storage Type *</label>
               <Input
                 name="storageType"
-                value={
-                  form.storageType
-                    ? form.storageType.charAt(0).toUpperCase() +
-                      form.storageType.slice(1).toLowerCase()
-                    : ""
-                }
+                value={form.storageType}
                 readOnly
                 className="bg-gray-100 text-gray-500"
               />
@@ -382,14 +276,13 @@ export default function ToolsPage() {
               {success && <p className="text-green-600 text-sm">{success}</p>}
               {error && <p className="text-red-500 text-sm">{error}</p>}
             </div>
-
           </form>
         </CardContent>
       </Card>
 
-      {/* ----------------------------------------------- */}
+      {/* ------------------------------------------------ */}
       {/* TOOLS TABLE */}
-      {/* ----------------------------------------------- */}
+      {/* ------------------------------------------------ */}
       <Card>
         <CardHeader>
           <CardTitle>Tools — {mainDepartment}</CardTitle>
@@ -435,7 +328,6 @@ export default function ToolsPage() {
           )}
         </CardContent>
       </Card>
-
     </div>
   );
 }

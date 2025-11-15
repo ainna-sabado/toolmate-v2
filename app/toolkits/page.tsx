@@ -3,6 +3,10 @@
 import React, { useEffect, useState } from "react";
 import { useDepartment } from "@/context/DepartmentContext";
 
+import { useToolKits } from "@/hooks/useToolKits";
+import { useStorage } from "@/hooks/useStorage";
+import { useToolMeta } from "@/hooks/useToolMeta";
+
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,68 +21,22 @@ import {
 } from "@/components/ui/table";
 
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { Combobox } from "@/components/ui/combobox";
 
-// ---------------------------------------------------------
-// Types
-// ---------------------------------------------------------
-type KitContent = {
-  _id: string;
-  name: string;
-  brand?: string;
-  category?: string;
-  eqNumber?: string;
-  qty: number;
-  calDate?: string;
-  auditStatus: string;
-};
-
-type ToolKit = {
-  _id: string;
-  name: string;
-  kitNumber: string;
-  brand?: string;
-  category?: string;
-  qrCode: string;
-  mainStorageName: string;
-  mainStorageCode: string;
-  qrLocation: string;
-  storageType: string;
-  mainDepartment: string;
-  status: string;
-  auditStatus: string;
-  contents: KitContent[];
-};
-
-type StorageInfo = {
-  mainStorageName: string;
-  mainStorageCode: string;
-  storageType: string;
-};
-
-// ---------------------------------------------------------
 export default function ToolKitsPage() {
   const { mainDepartment } = useDepartment();
 
-  const [kits, setKits] = useState<ToolKit[]>([]);
-  const [storageLocations, setStorageLocations] = useState<StorageInfo[]>([]);
-  const [qrLocations, setQrLocations] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const {
+    kits,
+    storageLocations,
+    loading,
+    refresh: refreshKits,
+  } = useToolKits(mainDepartment);
+
+  const { storages, qrLocations, loadQrLocations } = useStorage(mainDepartment);
+  const { brands, categories } = useToolMeta();
 
   // Toolkit form
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-
-  const [contentForm, setContentForm] = useState({
-    name: "",
-    brand: "",
-    category: "",
-    eqNumber: "",
-    qty: "1",
-    calDate: "",
-  });
-
   const [form, setForm] = useState({
     name: "",
     kitNumber: "",
@@ -92,67 +50,31 @@ export default function ToolKitsPage() {
     status: "available",
   });
 
-  // ---------------------------------------------------------
-  // Fetch toolkits + storage list
-  // ---------------------------------------------------------
-  const fetchKits = async () => {
-    if (!mainDepartment) return;
+  // Add content form
+  const [contentForm, setContentForm] = useState({
+    name: "",
+    brand: "",
+    category: "",
+    eqNumber: "",
+    qty: "1",
+    calDate: "",
+  });
 
-    setLoading(true);
+  // Page state
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-    try {
-      const res = await fetch(
-        `/api/toolkits?mainDepartment=${encodeURIComponent(mainDepartment)}`
-      );
+  // Content-specific feedback
+  const [contentSuccess, setContentSuccess] = useState<string | null>(null);
+  const [contentError, setContentError] = useState<string | null>(null);
+  const [contentLoading, setContentLoading] = useState(false);
 
-      const data = await res.json();
-
-      setKits(data.toolkits || []);
-      setStorageLocations(data.storageLocations || []); // NEW
-    } catch (err) {
-      setError("Failed to load toolkits");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchKits();
-  }, [mainDepartment]);
-
-  // ---------------------------------------------------------
-  // Auto-fill storageCode + storageType + available QR locations
-  // ---------------------------------------------------------
-  useEffect(() => {
-    const selected = storageLocations.find(
-      (s) => s.mainStorageName === form.mainStorageName
-    );
-
-    setForm((prev) => ({
-      ...prev,
-      mainStorageCode: selected?.mainStorageCode || "",
-      storageType: selected?.storageType || "",
-    }));
-
-    // Load QR Locations filtered by storage
-    const uniqueQRs = new Set<string>();
-    kits.forEach((kit) => {
-      if (kit.mainStorageName === form.mainStorageName && kit.qrLocation) {
-        uniqueQRs.add(kit.qrLocation);
-      }
-    });
-    setQrLocations([...uniqueQRs]);
-  }, [form.mainStorageName, storageLocations, kits]);
-
-  // ---------------------------------------------------------
-  // Form handlers
-  // ---------------------------------------------------------
-  const handleToolkitFormChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
+  // Auto-generate QR from kit number
+  const handleToolkitFormChange = (e: any) => {
     const { name, value } = e.target;
 
-    // Auto-generate QR Code using kit number
     if (name === "kitNumber") {
       setForm((prev) => ({
         ...prev,
@@ -165,20 +87,28 @@ export default function ToolKitsPage() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleContentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setContentForm((prev) => ({ ...prev, [name]: value }));
-  };
+  // Auto-fill storage fields + load QR options
+  useEffect(() => {
+    const selected = storages.find(
+      (s) => s.mainStorageName === form.mainStorageName
+    );
 
-  // ---------------------------------------------------------
-  // Submit toolkit
-  // ---------------------------------------------------------
+    setForm((prev) => ({
+      ...prev,
+      mainStorageCode: selected?.mainStorageCode || "",
+      storageType: selected?.storageType || "",
+    }));
+
+    loadQrLocations(form.mainStorageName);
+  }, [form.mainStorageName, storages, loadQrLocations]);
+
+  // Create toolkit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     setSubmitting(true);
-    setError(null);
     setSuccess(null);
+    setError(null);
 
     try {
       const payload: any = {
@@ -206,6 +136,7 @@ export default function ToolKitsPage() {
       if (!res.ok) throw new Error(data.error);
 
       setSuccess("Toolkit created successfully.");
+      refreshKits();
 
       // Reset form
       setForm({
@@ -221,18 +152,21 @@ export default function ToolKitsPage() {
         status: "available",
       });
 
-      fetchKits();
+      setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       setError(err.message);
+      setTimeout(() => setError(null), 4000);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ---------------------------------------------------------
-  // Add new kit content
-  // ---------------------------------------------------------
+  // Add content to toolkit
   const addKitContent = async (kitId: string) => {
+    setContentLoading(true);
+    setContentSuccess(null);
+    setContentError(null);
+
     try {
       const payload = {
         name: contentForm.name.trim(),
@@ -253,6 +187,9 @@ export default function ToolKitsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
+      refreshKits();
+
+      // Reset content form
       setContentForm({
         name: "",
         brand: "",
@@ -262,10 +199,13 @@ export default function ToolKitsPage() {
         calDate: "",
       });
 
-      fetchKits();
-      setSuccess("Added item successfully.");
+      setContentSuccess("Item added successfully!");
+      setTimeout(() => setContentSuccess(null), 3000);
     } catch (err: any) {
-      setError(err.message);
+      setContentError(err.message);
+      setTimeout(() => setContentError(null), 4000);
+    } finally {
+      setContentLoading(false);
     }
   };
 
@@ -273,9 +213,6 @@ export default function ToolKitsPage() {
     setExpanded((prev) => (prev === id ? null : id));
   };
 
-  // ---------------------------------------------------------
-  // UI
-  // ---------------------------------------------------------
   if (!mainDepartment) {
     return (
       <div className="p-8 text-center text-gray-500">
@@ -287,10 +224,9 @@ export default function ToolKitsPage() {
 
   return (
     <div className="max-w-6xl mx-auto py-8 space-y-8">
-
-      {/* -------------------------------------------------------
-          ADD TOOLKIT FORM
-      -------------------------------------------------------- */}
+      {/* -------------------------------------------------- */}
+      {/* ADD TOOLKIT FORM */}
+      {/* -------------------------------------------------- */}
       <Card>
         <CardHeader>
           <CardTitle>Add Toolkit ({mainDepartment})</CardTitle>
@@ -298,7 +234,6 @@ export default function ToolKitsPage() {
 
         <CardContent>
           <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
-
             {/* Toolkit Name */}
             <div className="md:col-span-2">
               <label className="text-sm mb-1 block">Toolkit Name *</label>
@@ -321,7 +256,7 @@ export default function ToolKitsPage() {
               />
             </div>
 
-            {/* Auto QR code */}
+            {/* QR Code */}
             <div>
               <label className="text-sm mb-1 block">QR Code</label>
               <Input
@@ -335,20 +270,28 @@ export default function ToolKitsPage() {
             {/* Brand */}
             <div>
               <label className="text-sm mb-1 block">Brand</label>
-              <Input
-                name="brand"
+              <Combobox
                 value={form.brand}
-                onChange={handleToolkitFormChange}
+                onValueChange={(v) =>
+                  setForm((prev) => ({ ...prev, brand: v }))
+                }
+                options={brands}
+                allowCustom
+                placeholder="Select or type brand"
               />
             </div>
 
             {/* Category */}
             <div>
               <label className="text-sm mb-1 block">Category</label>
-              <Input
-                name="category"
+              <Combobox
                 value={form.category}
-                onChange={handleToolkitFormChange}
+                onValueChange={(v) =>
+                  setForm((prev) => ({ ...prev, category: v }))
+                }
+                options={categories}
+                allowCustom
+                placeholder="Select or type category"
               />
             </div>
 
@@ -371,7 +314,7 @@ export default function ToolKitsPage() {
               </select>
             </div>
 
-            {/* Main Storage Selection */}
+            {/* Main Storage */}
             <div>
               <label className="text-sm mb-1 block">Main Storage *</label>
               <select
@@ -381,7 +324,7 @@ export default function ToolKitsPage() {
                 className="border rounded-md px-3 py-2 w-full"
               >
                 <option value="">Select Storage</option>
-                {storageLocations.map((s) => (
+                {storages.map((s) => (
                   <option key={s.mainStorageName} value={s.mainStorageName}>
                     {s.mainStorageName}
                   </option>
@@ -389,7 +332,7 @@ export default function ToolKitsPage() {
               </select>
             </div>
 
-            {/* Auto Storage Code */}
+            {/* Storage Code */}
             <div>
               <label className="text-sm mb-1 block">Storage Code</label>
               <Input
@@ -418,17 +361,12 @@ export default function ToolKitsPage() {
               </select>
             </div>
 
-            {/* Auto Storage Type */}
+            {/* Storage Type */}
             <div>
               <label className="text-sm mb-1 block">Storage Type *</label>
               <Input
                 name="storageType"
-                value={
-                  form.storageType
-                    ? form.storageType.charAt(0).toUpperCase() +
-                      form.storageType.slice(1).toLowerCase()
-                    : ""
-                }
+                value={form.storageType}
                 readOnly
                 className="bg-gray-100 text-gray-500"
               />
@@ -446,9 +384,9 @@ export default function ToolKitsPage() {
         </CardContent>
       </Card>
 
-      {/* -------------------------------------------------------
-          TOOLKIT LIST
-      -------------------------------------------------------- */}
+      {/* -------------------------------------------------- */}
+      {/* TOOLKIT LIST */}
+      {/* -------------------------------------------------- */}
       <Card>
         <CardHeader>
           <CardTitle>Toolkits — {mainDepartment}</CardTitle>
@@ -504,9 +442,9 @@ export default function ToolKitsPage() {
                         <TableRow>
                           <TableCell colSpan={6}>
                             <div className="bg-muted/40 p-4 rounded-md">
-
                               <h4 className="font-semibold mb-3">Kit Contents</h4>
 
+                              {/* CONTENT LIST */}
                               {kit.contents.length === 0 ? (
                                 <p className="text-sm text-muted-foreground mb-4">
                                   No contents added yet.
@@ -545,32 +483,64 @@ export default function ToolKitsPage() {
                                 </Table>
                               )}
 
-                              {/* Add Content */}
+                              {/* CONTENT FEEDBACK */}
+                              {contentSuccess && (
+                                <p className="text-green-600 text-sm mb-2">
+                                  {contentSuccess}
+                                </p>
+                              )}
+                              {contentError && (
+                                <p className="text-red-500 text-sm mb-2">
+                                  {contentError}
+                                </p>
+                              )}
+
+                              {/* ADD CONTENT */}
                               <h4 className="font-semibold mb-2">Add New Content</h4>
 
                               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                                 <Input
                                   name="name"
                                   value={contentForm.name}
-                                  onChange={handleContentChange}
+                                  onChange={(e) =>
+                                    setContentForm((prev) => ({
+                                      ...prev,
+                                      name: e.target.value,
+                                    }))
+                                  }
                                   placeholder="Name *"
                                 />
                                 <Input
                                   name="brand"
                                   value={contentForm.brand}
-                                  onChange={handleContentChange}
+                                  onChange={(e) =>
+                                    setContentForm((prev) => ({
+                                      ...prev,
+                                      brand: e.target.value,
+                                    }))
+                                  }
                                   placeholder="Brand"
                                 />
                                 <Input
                                   name="category"
                                   value={contentForm.category}
-                                  onChange={handleContentChange}
+                                  onChange={(e) =>
+                                    setContentForm((prev) => ({
+                                      ...prev,
+                                      category: e.target.value,
+                                    }))
+                                  }
                                   placeholder="Category"
                                 />
                                 <Input
                                   name="eqNumber"
                                   value={contentForm.eqNumber}
-                                  onChange={handleContentChange}
+                                  onChange={(e) =>
+                                    setContentForm((prev) => ({
+                                      ...prev,
+                                      eqNumber: e.target.value,
+                                    }))
+                                  }
                                   placeholder="Eq Number"
                                 />
                                 <Input
@@ -578,22 +548,33 @@ export default function ToolKitsPage() {
                                   type="number"
                                   min="1"
                                   value={contentForm.qty}
-                                  onChange={handleContentChange}
+                                  onChange={(e) =>
+                                    setContentForm((prev) => ({
+                                      ...prev,
+                                      qty: e.target.value,
+                                    }))
+                                  }
                                   placeholder="Qty"
                                 />
                                 <Input
                                   name="calDate"
                                   type="date"
                                   value={contentForm.calDate}
-                                  onChange={handleContentChange}
+                                  onChange={(e) =>
+                                    setContentForm((prev) => ({
+                                      ...prev,
+                                      calDate: e.target.value,
+                                    }))
+                                  }
                                 />
                               </div>
 
                               <Button
                                 className="mt-4"
                                 onClick={() => addKitContent(kit._id)}
+                                disabled={contentLoading}
                               >
-                                Add Item
+                                {contentLoading ? "Adding..." : "Add Item"}
                               </Button>
                             </div>
                           </TableCell>

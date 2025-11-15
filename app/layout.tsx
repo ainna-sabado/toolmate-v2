@@ -25,7 +25,13 @@ export default function RootLayout({
             <div className="flex flex-col flex-1">
               <Header />
 
-              <main className="flex-1 p-4 overflow-y-auto">{children}</main>
+              {/* MAIN CONTENT AREA */}
+              <main className="flex-1 overflow-y-auto">
+                {/* GLOBAL RESPONSIVE WRAPPER */}
+                <div className="container mx-auto p-4 sm:p-6 lg:p-8">
+                  {children}
+                </div>
+              </main>
 
               <Footer />
             </div>
