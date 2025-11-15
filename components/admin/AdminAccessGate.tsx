@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, ShieldCheck } from "lucide-react";
 import toast from "react-hot-toast";
 
+// Load QR Scanner only on client
 const Scanner = dynamic(
   () => import("@yudiel/react-qr-scanner").then((mod) => mod.Scanner),
   { ssr: false }
@@ -17,7 +18,7 @@ export default function AdminAccessGate() {
   const router = useRouter();
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [processing, setProcessing] = useState(false); // prevent multiple scans
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -25,10 +26,9 @@ export default function AdminAccessGate() {
   }, []);
 
   const handleScan = async (result: any) => {
-    if (processing) return; // ignore extra events
+    if (processing) return;
     setProcessing(true);
 
-    // Extract rawValue from QR scanner
     let qrValue = "";
     if (Array.isArray(result) && result[0]?.rawValue) {
       qrValue = result[0].rawValue;
@@ -57,7 +57,7 @@ export default function AdminAccessGate() {
         return;
       }
 
-      // Create secure HttpOnly cookie
+      // Create secure admin session
       await fetch("/api/admin/session/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -66,9 +66,7 @@ export default function AdminAccessGate() {
 
       toast.success("Admin verified! ✔");
 
-      setTimeout(() => {
-        router.push("/admin-access/dashboard");
-      }, 900);
+      setTimeout(() => router.push("/admin-access/dashboard"), 900);
     } catch (err) {
       console.error("❌ Verification error:", err);
       toast.error("Verification failed");
@@ -98,8 +96,9 @@ export default function AdminAccessGate() {
             <Scanner
               onScan={handleScan}
               onError={(err: any) => console.error("SCAN ERROR:", err)}
-              delay={300}
-              facingMode="environment"
+              constraints={{
+                facingMode: "environment", // correct MediaTrackConstraints format
+              }}
               style={{ width: "100%", height: "100%" }}
             />
           </div>
