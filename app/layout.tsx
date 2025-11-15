@@ -1,41 +1,29 @@
-import type { Metadata } from "next";
+"use client";
+
 import "./globals.css";
+import { useState } from "react";
 import { DepartmentProvider } from "@/context/DepartmentContext";
-import Header from "@/components/layout/Header";
 import Sidebar from "@/components/layout/Sidebar";
+import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 
-export const metadata: Metadata = {
-  title: "ToolMate",
-  description: "Aviation Tool Tracking System",
-};
+export default function RootLayout({ children }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
   return (
     <html lang="en">
       <body>
         <DepartmentProvider>
-          <div className="flex h-screen overflow-hidden">
-            <Sidebar />
+          <Header onMenuClick={() => setSidebarOpen(true)} />
+          <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-            <div className="flex flex-col flex-1">
-              <Header />
-
-              {/* MAIN CONTENT AREA */}
-              <main className="flex-1 overflow-y-auto">
-                {/* GLOBAL RESPONSIVE WRAPPER */}
-                <div className="container mx-auto p-4 sm:p-6 lg:p-8">
-                  {children}
-                </div>
-              </main>
-
-              <Footer />
+          <main className="pt-16">
+            <div className="container mx-auto p-4 sm:p-6 lg:p-8">
+              {children}
             </div>
-          </div>
+          </main>
+
+          <Footer />
         </DepartmentProvider>
       </body>
     </html>

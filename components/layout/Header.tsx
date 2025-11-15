@@ -2,32 +2,47 @@
 
 import { useState } from "react";
 import { useDepartment } from "@/context/DepartmentContext";
-import { Settings } from "lucide-react";
+import { Menu, Settings } from "lucide-react";
 import DepartmentSelector from "./DepartmentSelector";
 
-export default function Header() {
+export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
   const { mainDepartment } = useDepartment();
-  const [open, setOpen] = useState<boolean>(false);
+  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
 
   return (
     <>
-      <header className="w-full border-b bg-white p-4 flex items-center justify-between">
+      <header className="fixed top-0 left-0 right-0 z-30 border-b bg-white p-4 flex items-center justify-between">
+        
+        {/* HAMBURGER */}
+        <button
+          onClick={onMenuClick}
+          className="p-2 rounded-md border hover:bg-gray-100"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+
+        {/* TITLE */}
         <h1 className="text-xl font-bold">ToolMate</h1>
 
-        <div className="flex items-center gap-4">
+        {/* RIGHT SIDE: Department + Settings */}
+        <div className="flex items-center gap-3">
           {mainDepartment && (
             <span className="px-3 py-1 bg-gray-200 rounded-md text-sm font-medium">
               {mainDepartment}
             </span>
           )}
 
-          <button onClick={() => setOpen(true)}>
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="p-2 rounded hover:bg-gray-100"
+          >
             <Settings className="w-6 h-6" />
           </button>
         </div>
       </header>
 
-      <DepartmentSelector open={open} setOpen={setOpen} />
+      {/* SETTINGS DRAWER */}
+      <DepartmentSelector open={settingsOpen} setOpen={setSettingsOpen} />
     </>
   );
 }
