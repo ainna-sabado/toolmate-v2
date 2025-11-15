@@ -14,12 +14,10 @@ export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
     <>
       <header
         className="
-          fixed top-0 left-0 right-0 z-30 
-          border-b bg-white px-4 py-3 
-          flex flex-col 
-          md:flex-row md:items-center md:justify-between
-          gap-2 md:gap-0
-        "
+    fixed top-0 left-0 right-0 z-30 
+    border-b bg-white px-4 py-3 
+    flex items-center justify-between   /* 👈 Always one row */
+  "
       >
         {/* LEFT SECTION — hamburger + title */}
         <div className="flex items-center gap-3">
@@ -31,19 +29,19 @@ export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
           </button>
 
           <Link href="/">
-            <h1 className="text-lg md:text-xl font-bold hover:text-blue-600 transition cursor-pointer">
+            <h1 className="text-lg md:text-xl font-bold cursor-pointer hover:text-blue-600 transition">
               ToolMate
             </h1>
           </Link>
         </div>
 
-        {/* RIGHT SECTION — Dept + Settings */}
+        {/* RIGHT SECTION — Dept (desktop only) + settings */}
         <div className="flex items-center gap-3 md:gap-4 justify-end">
           {mainDepartment && (
             <span
               className="
-                px-3 py-1 rounded-md text-sm font-medium bg-gray-200 
-                md:order-0
+                px-3 py-1 rounded-md text-sm font-medium bg-gray-200
+                hidden md:inline      /* 👈 Hide on mobile/tablet */
               "
             >
               {mainDepartment}
