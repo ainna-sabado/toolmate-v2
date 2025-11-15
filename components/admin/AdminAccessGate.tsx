@@ -52,7 +52,7 @@ export default function AdminAccessGate() {
 
       if (!res.ok) {
         toast.error(data.error || "Access Denied");
-        setTimeout(() => (window.location.href = "/"), 900);
+        setTimeout(() => (window.location.href = "/"), 300);
         return;
       }
 
@@ -72,7 +72,7 @@ export default function AdminAccessGate() {
     } catch (err) {
       console.error("❌ Verification error:", err);
       toast.error("Verification failed");
-      setTimeout(() => (window.location.href = "/"), 900);
+      setTimeout(() => (window.location.href = "/"), 300);
     }
   };
 
