@@ -8,10 +8,22 @@ import { Button } from "@/components/ui/button";
 import { Loader2, ShieldCheck } from "lucide-react";
 import toast from "react-hot-toast";
 
+// Load QR scanner only on client
 const Scanner = dynamic(
   () => import("@yudiel/react-qr-scanner").then((mod) => mod.Scanner),
   { ssr: false }
 );
+
+// Helper — extract QR data from scanner output
+function getQRValue(result: any): string | null {
+  if (!result) return null;
+
+  if (Array.isArray(result) && result[0]?.rawValue) {
+    return result[0].rawValue;
+  }
+
+  return result.rawValue ?? null;
+}
 
 export default function AdminAccessGate() {
   const router = useRouter();
@@ -24,55 +36,55 @@ export default function AdminAccessGate() {
     setSelectedDepartment(localStorage.getItem("mainDepartment"));
   }, []);
 
-  const handleScan = async (result: any) => {
+  const handleScan = async (scan: any) => {
     if (processing) return;
     setProcessing(true);
 
-    let qrValue = "";
-    if (Array.isArray(result) && result[0]?.rawValue) {
-      qrValue = result[0].rawValue;
-    } else if (result?.rawValue) {
-      qrValue = result.rawValue;
-    }
-
+    const qrValue = getQRValue(scan);
     if (!qrValue) {
-      console.log("⚠️ Invalid QR detected");
+      console.warn("⚠️ Invalid QR detected");
       setProcessing(false);
       return;
     }
 
     try {
-      const res = await fetch("/api/admin/verify", {
+      // Verify admin
+      const verifyRes = await fetch("/api/admin/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qrCodeValue: qrValue, selectedDepartment }),
+        body: JSON.stringify({
+          qrCodeValue: qrValue,
+          selectedDepartment,
+        }),
       });
 
-      const data = await res.json();
+      const verifyData = await verifyRes.json();
 
-      if (!res.ok) {
-        toast.error(data.error || "Access Denied");
-        setTimeout(() => (window.location.href = "/"), 300);
+      if (!verifyRes.ok) {
+        toast.error(verifyData.error || "Access Denied");
+        setTimeout(() => (window.location.href = "/"), 1000);
         return;
       }
 
+      // Create admin session cookie
       await fetch("/api/admin/session/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ adminId: data.employee._id }),
+        body: JSON.stringify({ adminId: verifyData.employee._id }),
       });
 
-      toast.success("Admin Verified ✔");
+      toast.success("Admin Verified! Redirecting…");
 
-      // FULL PAGE REDIRECT (middleware will detect cookie)
+      // Must be a full redirect so middleware sees cookie
       setTimeout(() => {
         window.location.href = "/admin-access/dashboard";
       }, 1200);
-
     } catch (err) {
       console.error("❌ Verification error:", err);
-      toast.error("Verification failed");
-      setTimeout(() => (window.location.href = "/"), 300);
+      toast.error("Verification Failed");
+      setTimeout(() => (window.location.href = "/"), 500);
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -84,8 +96,8 @@ export default function AdminAccessGate() {
     <div className="flex justify-center p-6">
       <Card className="w-full max-w-xl">
         <CardHeader>
-          <CardTitle className="text-center text-xl">
-            <ShieldCheck className="inline-block mr-2" size={22} />
+          <CardTitle className="text-center text-xl flex items-center justify-center gap-2">
+            <ShieldCheck size={22} />
             Admin Verification
           </CardTitle>
           <p className="text-center text-sm text-gray-500">
@@ -106,9 +118,9 @@ export default function AdminAccessGate() {
             />
           </div>
 
-          <Button disabled className="w-full opacity-40">
+          <Button disabled className="w-full opacity-50">
             {processing && <Loader2 className="animate-spin mr-2" size={16} />}
-            Waiting for QR scan…
+            {processing ? "Processing…" : "Waiting for QR scan…"}
           </Button>
 
           <p className="text-xs text-center text-gray-500">

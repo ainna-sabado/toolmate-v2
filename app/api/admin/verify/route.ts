@@ -11,7 +11,6 @@ export async function POST(req: Request) {
     console.log("📥 API received:", { qrCodeValue, selectedDepartment });
 
     if (!qrCodeValue || !selectedDepartment) {
-      console.log("❌ Missing payload");
       return NextResponse.json(
         { error: "Invalid request payload" },
         { status: 400 }
@@ -24,27 +23,21 @@ export async function POST(req: Request) {
         selectedDepartment
       );
 
-      console.log("✅ Admin verified:", employee);
+      console.log("✅ Admin verified:", employee._id);
 
       return NextResponse.json({
         authorized: true,
         employee,
       });
+    } catch (serviceError) {
+      console.log("❌ Admin access denied");
 
-    } catch (serviceError: any) {
-      console.log("❌ Admin verify failed:", serviceError.message);
-
-      return NextResponse.json(
-        { error: serviceError.message },
-        { status: 403 }
-      );
+      // ❗ Always return a generic error — for security
+      return NextResponse.json({ error: "Access Denied" }, { status: 403 });
     }
-
   } catch (err) {
     console.error("❌ SERVER ERROR:", err);
-    return NextResponse.json(
-      { error: "Server error" },
-      { status: 500 }
-    );
+
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
