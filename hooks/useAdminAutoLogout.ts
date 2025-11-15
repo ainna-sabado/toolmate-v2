@@ -7,13 +7,12 @@ export function useAdminAutoLogout() {
   const pathname = usePathname();
 
   useEffect(() => {
-    const isAdminRoute = pathname.startsWith("/admin");
+    const isAdminRoute = pathname.startsWith("/admin-access");
 
     if (!isAdminRoute) {
-      localStorage.removeItem("adminUser");
-      localStorage.removeItem("adminDepartment");
-      localStorage.removeItem("adminSessionExpiry");
-      console.log("🔒 Auto-logout: exited admin route");
+      console.log("🔒 Auto-logout: exited admin routes");
+      // Clear the cookie on server
+      fetch("/api/admin/session/logout", { method: "POST" });
     }
   }, [pathname]);
 }

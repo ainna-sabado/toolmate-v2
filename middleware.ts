@@ -7,18 +7,18 @@ export function middleware(req: NextRequest) {
   const isAdminRoute = path.startsWith("/admin-access");
   const isLoginPage = path === "/admin-access";
 
-  // Only care about /admin-access routes
+  // Non admin-access route → ignore
   if (!isAdminRoute) return NextResponse.next();
 
-  // Allow the QR login page without a session
+  // Allow QR login page
   if (isLoginPage) return NextResponse.next();
 
-  // For everything else under /admin-access/* → require cookie
+  // Require adminSession cookie for all other routes
   const session = req.cookies.get("adminSession")?.value;
 
   if (!session) {
     const url = req.nextUrl.clone();
-    url.pathname = "/admin-access"; // send to QR login
+    url.pathname = "/admin-access"; // redirect to QR login
     return NextResponse.redirect(url);
   }
 

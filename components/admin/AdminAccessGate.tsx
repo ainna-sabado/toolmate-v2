@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Loader2, ShieldCheck } from "lucide-react";
 import toast from "react-hot-toast";
 
-// Load QR Scanner only on client
 const Scanner = dynamic(
   () => import("@yudiel/react-qr-scanner").then((mod) => mod.Scanner),
   { ssr: false }
@@ -16,9 +15,7 @@ const Scanner = dynamic(
 
 export default function AdminAccessGate() {
   const router = useRouter();
-  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(
-    null
-  );
+  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [processing, setProcessing] = useState(false);
 
@@ -55,7 +52,7 @@ export default function AdminAccessGate() {
 
       if (!res.ok) {
         toast.error(data.error || "Access Denied");
-        setTimeout(() => router.push("/"), 900);
+        setTimeout(() => (window.location.href = "/"), 900);
         return;
       }
 
@@ -65,13 +62,17 @@ export default function AdminAccessGate() {
         body: JSON.stringify({ adminId: data.employee._id }),
       });
 
-      toast.success("Admin verified! ✔");
+      toast.success("Admin Verified ✔");
 
-      setTimeout(() => router.push("/admin-access/dashboard"), 900);
+      // FULL PAGE REDIRECT (middleware will detect cookie)
+      setTimeout(() => {
+        window.location.href = "/admin-access/dashboard";
+      }, 1200);
+
     } catch (err) {
       console.error("❌ Verification error:", err);
       toast.error("Verification failed");
-      setTimeout(() => router.push("/"), 900);
+      setTimeout(() => (window.location.href = "/"), 900);
     }
   };
 
@@ -97,19 +98,10 @@ export default function AdminAccessGate() {
             <Scanner
               onScan={handleScan}
               onError={(err: any) => console.error("SCAN ERROR:", err)}
-              constraints={{
-                facingMode: "environment",
-              }}
+              constraints={{ facingMode: "environment" }}
               styles={{
-                container: {
-                  width: "100%",
-                  height: "100%",
-                },
-                video: {
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                },
+                container: { width: "100%", height: "100%" },
+                video: { width: "100%", height: "100%", objectFit: "cover" },
               }}
             />
           </div>
