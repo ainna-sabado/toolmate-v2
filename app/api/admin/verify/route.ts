@@ -10,6 +10,7 @@ export async function POST(req: Request) {
 
     console.log("📥 API received:", { qrCodeValue, selectedDepartment });
 
+    // Basic validation
     if (!qrCodeValue || !selectedDepartment) {
       return NextResponse.json(
         { error: "Invalid request payload" },
@@ -32,12 +33,11 @@ export async function POST(req: Request) {
     } catch (serviceError) {
       console.log("❌ Admin access denied");
 
-      // ❗ Always return a generic error — for security
+      // Generic error for security (never reveal reason)
       return NextResponse.json({ error: "Access Denied" }, { status: 403 });
     }
   } catch (err) {
     console.error("❌ SERVER ERROR:", err);
-
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

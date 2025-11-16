@@ -4,18 +4,19 @@ export default class AdminService {
   static async verifyAdminAccess(qrCodeValue: string, department: string) {
     console.log("🔍 Verifying admin access:", { qrCodeValue, department });
 
+    // 1. Find exact match
     const employee = await Employee.findOne({ qrCodeValue }).lean();
 
-    if (!employee)
-      throw new Error("Employee not found");
+    if (!employee) throw new Error("Employee not found");
 
-    const validationRules: [boolean, string][] = [
+    // 2. Validation rules
+    const rules: [boolean, string][] = [
       [employee.isAdmin, "Not an admin"],
       [employee.isActive, "Employee inactive"],
       [employee.mainDepartment === department, "Department mismatch"],
     ];
 
-    for (const [valid, message] of validationRules) {
+    for (const [valid, message] of rules) {
       if (!valid) throw new Error(message);
     }
 
