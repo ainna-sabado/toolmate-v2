@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useDepartment } from "@/context/DepartmentContext";
 
 import { useToolKits } from "@/hooks/useToolKits";
@@ -22,6 +22,7 @@ import {
 
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
+import { StatusBadge } from "@/components/helpers/StatusBadge";
 
 type KitContentItem = {
   _id: string;
@@ -33,6 +34,36 @@ type KitContentItem = {
   calDate?: string | null;
   auditStatus: string;
 };
+
+type ToolKitRow = {
+  _id: string;
+  name: string;
+  kitNumber: string;
+  mainStorageName?: string;
+  mainStorageCode?: string;
+  qrLocation: string;
+  storageType?: string;
+  status: string;
+  auditStatus: string;
+  contents: KitContentItem[];
+};
+
+const TOOLKIT_STATUS_OPTIONS = [
+  "available",
+  "in use",
+  "for calibration",
+  "damaged",
+  "lost",
+  "maintenance",
+  "expired",
+];
+
+const PAGE_SIZE = 10;
+
+function toLabel(value?: string) {
+  if (!value) return "";
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
 
 export default function ToolKitsPage() {
   const { mainDepartment } = useDepartment();
@@ -61,7 +92,7 @@ export default function ToolKitsPage() {
     status: "available",
   });
 
-  // Add content form
+  // Content form
   const [contentForm, setContentForm] = useState({
     name: "",
     brand: "",
@@ -71,19 +102,77 @@ export default function ToolKitsPage() {
     calDate: "",
   });
 
-  // Page state
   const [expanded, setExpanded] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Content-specific feedback
   const [contentSuccess, setContentSuccess] = useState<string | null>(null);
   const [contentError, setContentError] = useState<string | null>(null);
   const [contentLoading, setContentLoading] = useState(false);
 
-  // Auto-generate QR from kit number
-  const handleToolkitFormChange = (e: any) => {
+  // Filters + pagination
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [storageFilter, setStorageFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
+
+  const storageNameOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (storageLocations || [])
+            .map((s: any) => s.mainStorageName as string)
+            .filter(Boolean)
+        )
+      ),
+    [storageLocations]
+  );
+
+  const filteredKits: ToolKitRow[] = useMemo(() => {
+    const base = (kits || []) as ToolKitRow[];
+    let result = [...base];
+
+    if (storageFilter !== "all" && storageFilter) {
+      result = result.filter((kit) => kit.mainStorageName === storageFilter);
+    }
+
+    if (statusFilter !== "all" && statusFilter) {
+      result = result.filter((kit) => kit.status === statusFilter);
+    }
+
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter((kit) => {
+        return (
+          kit.name?.toLowerCase().includes(term) ||
+          kit.kitNumber?.toLowerCase().includes(term) ||
+          kit.qrLocation?.toLowerCase().includes(term) ||
+          kit.mainStorageName?.toLowerCase().includes(term)
+        );
+      });
+    }
+
+    result.sort((a, b) => a.name.localeCompare(b.name));
+
+    return result;
+  }, [kits, storageFilter, statusFilter, searchTerm]);
+
+  const totalKits = filteredKits.length;
+  const totalPages = Math.max(1, Math.ceil(totalKits / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pageEnd = pageStart + PAGE_SIZE;
+  const paginatedKits = filteredKits.slice(pageStart, pageEnd);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter, storageFilter]);
+
+  // Toolkit form change
+  const handleToolkitFormChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
 
     if (name === "kitNumber") {
@@ -95,47 +184,51 @@ export default function ToolKitsPage() {
       return;
     }
 
+    if (name === "mainStorageName") {
+      const selected = (storages || []).find(
+        (s: any) => s.mainStorageName === value
+      );
+
+      setForm((prev) => ({
+        ...prev,
+        mainStorageName: value,
+        mainStorageCode: selected?.mainStorageCode || "",
+        storageType: selected?.storageType || "",
+      }));
+
+      loadQrLocations(value);
+      return;
+    }
+
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Auto-fill storage fields + load QR options
-  useEffect(() => {
-    const selected = storages.find(
-      (s) => s.mainStorageName === form.mainStorageName
-    );
+  const toggleExpand = (id: string) => {
+    setExpanded((prev) => (prev === id ? null : id));
+  };
 
-    setForm((prev) => ({
-      ...prev,
-      mainStorageCode: selected?.mainStorageCode || "",
-      storageType: selected?.storageType || "",
-    }));
-
-    loadQrLocations(form.mainStorageName);
-  }, [form.mainStorageName, storages, loadQrLocations]);
-
-  // Create toolkit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!mainDepartment) return;
 
     setSubmitting(true);
-    setSuccess(null);
     setError(null);
+    setSuccess(null);
 
     try {
       const payload: any = {
         name: form.name.trim(),
         kitNumber: form.kitNumber.trim(),
+        brand: form.brand.trim() || undefined,
+        category: form.category.trim() || undefined,
         qrCode: form.qrCode.trim(),
         mainDepartment,
         mainStorageName: form.mainStorageName,
         mainStorageCode: form.mainStorageCode,
-        qrLocation: form.qrLocation,
+        qrLocation: form.qrLocation.trim(),
         storageType: form.storageType,
-        status: form.status,
+        status: form.status || "available",
       };
-
-      if (form.brand.trim()) payload.brand = form.brand.trim();
-      if (form.category.trim()) payload.category = form.category.trim();
 
       const res = await fetch("/api/toolkits", {
         method: "POST",
@@ -144,12 +237,9 @@ export default function ToolKitsPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error || "Failed to save toolkit.");
 
-      setSuccess("Toolkit created successfully.");
-      refreshKits();
-
-      // Reset form
+      setSuccess("Toolkit saved successfully!");
       setForm({
         name: "",
         kitNumber: "",
@@ -163,26 +253,24 @@ export default function ToolKitsPage() {
         status: "available",
       });
 
-      setTimeout(() => setSuccess(null), 3000);
+      refreshKits();
     } catch (err: any) {
-      setError(err.message);
-      setTimeout(() => setError(null), 4000);
+      setError(err.message || "Something went wrong.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Add content to toolkit
   const addKitContent = async (kitId: string) => {
     setContentLoading(true);
-    setContentSuccess(null);
     setContentError(null);
+    setContentSuccess(null);
 
     try {
       const payload = {
         name: contentForm.name.trim(),
-        brand: contentForm.brand.trim(),
-        category: contentForm.category.trim(),
+        brand: contentForm.brand.trim() || undefined,
+        category: contentForm.category.trim() || undefined,
         eqNumber: contentForm.eqNumber.trim(),
         qty: Number(contentForm.qty),
         calDate: contentForm.calDate || null,
@@ -196,11 +284,10 @@ export default function ToolKitsPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error || "Failed to add kit item.");
 
       refreshKits();
 
-      // Reset content form
       setContentForm({
         name: "",
         brand: "",
@@ -213,31 +300,15 @@ export default function ToolKitsPage() {
       setContentSuccess("Item added successfully!");
       setTimeout(() => setContentSuccess(null), 3000);
     } catch (err: any) {
-      setContentError(err.message);
-      setTimeout(() => setContentError(null), 4000);
+      setContentError(err.message || "Something went wrong.");
     } finally {
       setContentLoading(false);
     }
   };
 
-  const toggleExpand = (id: string) => {
-    setExpanded((prev) => (prev === id ? null : id));
-  };
-
-  if (!mainDepartment) {
-    return (
-      <div className="p-8 text-center text-gray-500">
-        <p className="text-lg font-semibold">No Department Selected</p>
-        <p>Please choose a department from Settings.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-6xl mx-auto py-8 space-y-8">
-      {/* -------------------------------------------------- */}
-      {/* ADD TOOLKIT FORM */}
-      {/* -------------------------------------------------- */}
+      {/* Add Toolkit */}
       <Card>
         <CardHeader>
           <CardTitle>Add Toolkit ({mainDepartment})</CardTitle>
@@ -245,9 +316,8 @@ export default function ToolKitsPage() {
 
         <CardContent>
           <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
-            {/* Toolkit Name */}
             <div className="md:col-span-2">
-              <label className="text-sm mb-1 block">Toolkit Name *</label>
+              <label className="text-sm mb-1 block">Name *</label>
               <Input
                 name="name"
                 value={form.name}
@@ -256,7 +326,6 @@ export default function ToolKitsPage() {
               />
             </div>
 
-            {/* Kit Number */}
             <div>
               <label className="text-sm mb-1 block">Kit Number *</label>
               <Input
@@ -267,18 +336,16 @@ export default function ToolKitsPage() {
               />
             </div>
 
-            {/* QR Code */}
             <div>
               <label className="text-sm mb-1 block">QR Code</label>
               <Input
                 name="qrCode"
                 value={form.qrCode}
                 readOnly
-                className="bg-gray-100 text-gray-400"
+                className="bg-gray-100 text-gray-500"
               />
             </div>
 
-            {/* Brand */}
             <div>
               <label className="text-sm mb-1 block">Brand</label>
               <Combobox
@@ -287,12 +354,10 @@ export default function ToolKitsPage() {
                   setForm((prev) => ({ ...prev, brand: v }))
                 }
                 options={brands}
-                allowCustom
-                placeholder="Select or type brand"
+                placeholder="Select or type..."
               />
             </div>
 
-            {/* Category */}
             <div>
               <label className="text-sm mb-1 block">Category</label>
               <Combobox
@@ -301,41 +366,21 @@ export default function ToolKitsPage() {
                   setForm((prev) => ({ ...prev, category: v }))
                 }
                 options={categories}
-                allowCustom
-                placeholder="Select or type category"
+                placeholder="Select or type..."
               />
             </div>
 
-            {/* Status */}
-            <div>
-              <label className="text-sm mb-1 block">Status *</label>
-              <select
-                name="status"
-                value={form.status}
-                onChange={handleToolkitFormChange}
-                className="border rounded-md w-full px-3 py-2"
-              >
-                <option value="available">Available</option>
-                <option value="in use">In Use</option>
-                <option value="for calibration">For Calibration</option>
-                <option value="damaged">Damaged</option>
-                <option value="lost">Lost</option>
-                <option value="maintenance">Maintenance</option>
-                <option value="expired">Expired</option>
-              </select>
-            </div>
-
-            {/* Main Storage */}
             <div>
               <label className="text-sm mb-1 block">Main Storage *</label>
               <select
                 name="mainStorageName"
                 value={form.mainStorageName}
                 onChange={handleToolkitFormChange}
-                className="border rounded-md px-3 py-2 w-full"
+                required
+                className="border rounded-md px-3 py-2 w-full text-sm"
               >
                 <option value="">Select Storage</option>
-                {storages.map((s) => (
+                {(storages || []).map((s: any) => (
                   <option key={s.mainStorageName} value={s.mainStorageName}>
                     {s.mainStorageName}
                   </option>
@@ -343,7 +388,6 @@ export default function ToolKitsPage() {
               </select>
             </div>
 
-            {/* Storage Code */}
             <div>
               <label className="text-sm mb-1 block">Storage Code</label>
               <Input
@@ -354,17 +398,17 @@ export default function ToolKitsPage() {
               />
             </div>
 
-            {/* QR Location */}
             <div>
               <label className="text-sm mb-1 block">QR Location *</label>
               <select
                 name="qrLocation"
                 value={form.qrLocation}
                 onChange={handleToolkitFormChange}
-                className="border rounded-md px-3 py-2 w-full"
+                required
+                className="border rounded-md px-3 py-2 w-full text-sm"
               >
                 <option value="">Select QR Location</option>
-                {qrLocations.map((qr) => (
+                {qrLocations.map((qr: string) => (
                   <option key={qr} value={qr}>
                     {qr}
                   </option>
@@ -372,7 +416,6 @@ export default function ToolKitsPage() {
               </select>
             </div>
 
-            {/* Storage Type */}
             <div>
               <label className="text-sm mb-1 block">Storage Type *</label>
               <Input
@@ -383,7 +426,22 @@ export default function ToolKitsPage() {
               />
             </div>
 
-            {/* Submit */}
+            <div>
+              <label className="text-sm mb-1 block">Status</label>
+              <select
+                name="status"
+                value={form.status}
+                onChange={handleToolkitFormChange}
+                className="border rounded-md px-3 py-2 w-full text-sm"
+              >
+                {TOOLKIT_STATUS_OPTIONS.map((status) => (
+                  <option key={status} value={status}>
+                    {toLabel(status)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="md:col-span-2 flex items-center gap-4">
               <Button disabled={submitting}>
                 {submitting ? "Saving..." : "Save Toolkit"}
@@ -395,9 +453,7 @@ export default function ToolKitsPage() {
         </CardContent>
       </Card>
 
-      {/* -------------------------------------------------- */}
-      {/* TOOLKIT LIST */}
-      {/* -------------------------------------------------- */}
+      {/* Toolkits table */}
       <Card>
         <CardHeader>
           <CardTitle>Toolkits — {mainDepartment}</CardTitle>
@@ -406,212 +462,298 @@ export default function ToolKitsPage() {
         <CardContent>
           {loading ? (
             <p>Loading...</p>
-          ) : kits.length === 0 ? (
+          ) : (kits || []).length === 0 ? (
             <p>No toolkits found.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Kit #</TableHead>
-                  <TableHead>QR Location</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Audit</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
+            <>
+              {/* Filters */}
+              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex flex-1 gap-2">
+                  <Input
+                    placeholder="Search by name, kit #, QR, storage..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="max-w-md"
+                  />
 
-              <TableBody>
-                {kits.map((kit) => {
-                  const isOpen = expanded === kit._id;
+                  <select
+                    className="border rounded-md px-3 py-2 text-sm"
+                    value={storageFilter}
+                    onChange={(e) => setStorageFilter(e.target.value)}
+                  >
+                    <option value="all">All storages</option>
+                    {storageNameOptions.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                  return (
-                    <React.Fragment key={kit._id}>
+                <div className="flex gap-2">
+                  <select
+                    className="border rounded-md px-3 py-2 text-sm"
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                  >
+                    <option value="all">All statuses</option>
+                    {TOOLKIT_STATUS_OPTIONS.map((status) => (
+                      <option key={status} value={status}>
+                        {toLabel(status)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {filteredKits.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No toolkits match your search and filters.
+                </p>
+              ) : (
+                <>
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell>{kit.name}</TableCell>
-                        <TableCell>{kit.kitNumber}</TableCell>
-                        <TableCell>{kit.qrLocation}</TableCell>
-                        <TableCell>{kit.status}</TableCell>
-                        <TableCell>{kit.auditStatus}</TableCell>
-
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => toggleExpand(kit._id)}
-                          >
-                            {isOpen ? (
-                              <ChevronUp size={18} />
-                            ) : (
-                              <ChevronDown size={18} />
-                            )}
-                          </Button>
-                        </TableCell>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Kit #</TableHead>
+                        <TableHead>Main Storage</TableHead>
+                        <TableHead>QR Location</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead></TableHead>
                       </TableRow>
+                    </TableHeader>
 
-                      {isOpen && (
-                        <TableRow>
-                          <TableCell colSpan={6}>
-                            <div className="bg-muted/40 p-4 rounded-md">
-                              <h4 className="font-semibold mb-3">
-                                Kit Contents
-                              </h4>
+                    <TableBody>
+                      {paginatedKits.map((kit) => {
+                        const isOpen = expanded === kit._id;
 
-                              {/* CONTENT LIST */}
-                              {kit.contents.length === 0 ? (
-                                <p className="text-sm text-muted-foreground mb-4">
-                                  No contents added yet.
-                                </p>
-                              ) : (
-                                <Table className="border mb-6">
-                                  <TableHeader>
-                                    <TableRow className="bg-muted">
-                                      <TableHead>Name</TableHead>
-                                      <TableHead>Brand</TableHead>
-                                      <TableHead>Category</TableHead>
-                                      <TableHead>Eq #</TableHead>
-                                      <TableHead>Qty</TableHead>
-                                      <TableHead>Cal</TableHead>
-                                      <TableHead>Audit</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
+                        return (
+                          <React.Fragment key={kit._id}>
+                            <TableRow>
+                              <TableCell>{kit.name}</TableCell>
+                              <TableCell>{kit.kitNumber}</TableCell>
+                              <TableCell>
+                                {kit.mainStorageName || "-"}
+                              </TableCell>
+                              <TableCell>{kit.qrLocation || "-"}</TableCell>
+                              <TableCell>
+                                <StatusBadge value={kit.status} />
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => toggleExpand(kit._id)}
+                                >
+                                  {isOpen ? (
+                                    <ChevronUp size={18} />
+                                  ) : (
+                                    <ChevronDown size={18} />
+                                  )}
+                                </Button>
+                              </TableCell>
+                            </TableRow>
 
-                                  <TableBody>
-                                    {kit.contents.map(
-                                      (item: KitContentItem) => (
-                                        <TableRow key={item._id}>
-                                          <TableCell>{item.name}</TableCell>
-                                          <TableCell>
-                                            {item.brand || "-"}
-                                          </TableCell>
-                                          <TableCell>
-                                            {item.category || "-"}
-                                          </TableCell>
-                                          <TableCell>
-                                            {item.eqNumber || "-"}
-                                          </TableCell>
-                                          <TableCell>{item.qty}</TableCell>
-                                          <TableCell>
-                                            {item.calDate
-                                              ? new Date(
-                                                  item.calDate
-                                                ).toLocaleDateString()
-                                              : "-"}
-                                          </TableCell>
-                                          <TableCell>
-                                            {item.auditStatus}
-                                          </TableCell>
-                                        </TableRow>
-                                      )
+                            {isOpen && (
+                              <TableRow>
+                                <TableCell colSpan={6}>
+                                  <div className="bg-muted/40 p-4 rounded-md">
+                                    <h4 className="font-semibold mb-3">
+                                      Kit Contents
+                                    </h4>
+
+                                    {/* Contents list */}
+                                    {kit.contents.length === 0 ? (
+                                      <p className="text-sm text-muted-foreground mb-4">
+                                        No contents added yet.
+                                      </p>
+                                    ) : (
+                                      <Table className="border mb-6">
+                                        <TableHeader>
+                                          <TableRow className="bg-muted">
+                                            <TableHead>Name</TableHead>
+                                            <TableHead>Brand</TableHead>
+                                            <TableHead>Category</TableHead>
+                                            <TableHead>Eq #</TableHead>
+                                            <TableHead>Qty</TableHead>
+                                            <TableHead>Cal</TableHead>
+                                          </TableRow>
+                                        </TableHeader>
+
+                                        <TableBody>
+                                          {kit.contents.map(
+                                            (item: KitContentItem) => (
+                                              <TableRow key={item._id}>
+                                                <TableCell>
+                                                  {item.name}
+                                                </TableCell>
+                                                <TableCell>
+                                                  {item.brand || "-"}
+                                                </TableCell>
+                                                <TableCell>
+                                                  {item.category || "-"}
+                                                </TableCell>
+                                                <TableCell>
+                                                  {item.eqNumber || "-"}
+                                                </TableCell>
+                                                <TableCell>
+                                                  {item.qty}
+                                                </TableCell>
+                                                <TableCell>
+                                                  {item.calDate
+                                                    ? new Date(
+                                                        item.calDate
+                                                      ).toLocaleDateString()
+                                                    : "N/A"}
+                                                </TableCell>
+                                              </TableRow>
+                                            )
+                                          )}
+                                        </TableBody>
+                                      </Table>
                                     )}
-                                  </TableBody>
-                                </Table>
-                              )}
 
-                              {/* CONTENT FEEDBACK */}
-                              {contentSuccess && (
-                                <p className="text-green-600 text-sm mb-2">
-                                  {contentSuccess}
-                                </p>
-                              )}
-                              {contentError && (
-                                <p className="text-red-500 text-sm mb-2">
-                                  {contentError}
-                                </p>
-                              )}
+                                    {/* Content feedback */}
+                                    {contentSuccess && (
+                                      <p className="text-green-600 text-sm mb-2">
+                                        {contentSuccess}
+                                      </p>
+                                    )}
+                                    {contentError && (
+                                      <p className="text-red-500 text-sm mb-2">
+                                        {contentError}
+                                      </p>
+                                    )}
 
-                              {/* ADD CONTENT */}
-                              <h4 className="font-semibold mb-2">
-                                Add New Content
-                              </h4>
+                                    {/* Add content */}
+                                    <h4 className="font-semibold mb-2">
+                                      Add New Content
+                                    </h4>
 
-                              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                <Input
-                                  name="name"
-                                  value={contentForm.name}
-                                  onChange={(e) =>
-                                    setContentForm((prev) => ({
-                                      ...prev,
-                                      name: e.target.value,
-                                    }))
-                                  }
-                                  placeholder="Name *"
-                                />
-                                <Input
-                                  name="brand"
-                                  value={contentForm.brand}
-                                  onChange={(e) =>
-                                    setContentForm((prev) => ({
-                                      ...prev,
-                                      brand: e.target.value,
-                                    }))
-                                  }
-                                  placeholder="Brand"
-                                />
-                                <Input
-                                  name="category"
-                                  value={contentForm.category}
-                                  onChange={(e) =>
-                                    setContentForm((prev) => ({
-                                      ...prev,
-                                      category: e.target.value,
-                                    }))
-                                  }
-                                  placeholder="Category"
-                                />
-                                <Input
-                                  name="eqNumber"
-                                  value={contentForm.eqNumber}
-                                  onChange={(e) =>
-                                    setContentForm((prev) => ({
-                                      ...prev,
-                                      eqNumber: e.target.value,
-                                    }))
-                                  }
-                                  placeholder="Eq Number"
-                                />
-                                <Input
-                                  name="qty"
-                                  type="number"
-                                  min="1"
-                                  value={contentForm.qty}
-                                  onChange={(e) =>
-                                    setContentForm((prev) => ({
-                                      ...prev,
-                                      qty: e.target.value,
-                                    }))
-                                  }
-                                  placeholder="Qty"
-                                />
-                                <Input
-                                  name="calDate"
-                                  type="date"
-                                  value={contentForm.calDate}
-                                  onChange={(e) =>
-                                    setContentForm((prev) => ({
-                                      ...prev,
-                                      calDate: e.target.value,
-                                    }))
-                                  }
-                                />
-                              </div>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                      <Input
+                                        name="name"
+                                        value={contentForm.name}
+                                        onChange={(e) =>
+                                          setContentForm((prev) => ({
+                                            ...prev,
+                                            name: e.target.value,
+                                          }))
+                                        }
+                                        placeholder="Name *"
+                                      />
+                                      <Input
+                                        name="brand"
+                                        value={contentForm.brand}
+                                        onChange={(e) =>
+                                          setContentForm((prev) => ({
+                                            ...prev,
+                                            brand: e.target.value,
+                                          }))
+                                        }
+                                        placeholder="Brand"
+                                      />
+                                      <Input
+                                        name="category"
+                                        value={contentForm.category}
+                                        onChange={(e) =>
+                                          setContentForm((prev) => ({
+                                            ...prev,
+                                            category: e.target.value,
+                                          }))
+                                        }
+                                        placeholder="Category"
+                                      />
+                                      <Input
+                                        name="eqNumber"
+                                        value={contentForm.eqNumber}
+                                        onChange={(e) =>
+                                          setContentForm((prev) => ({
+                                            ...prev,
+                                            eqNumber: e.target.value,
+                                          }))
+                                        }
+                                        placeholder="Eq Number"
+                                      />
+                                      <Input
+                                        name="qty"
+                                        type="number"
+                                        min="1"
+                                        value={contentForm.qty}
+                                        onChange={(e) =>
+                                          setContentForm((prev) => ({
+                                            ...prev,
+                                            qty: e.target.value,
+                                          }))
+                                        }
+                                        placeholder="Qty"
+                                      />
+                                      <Input
+                                        name="calDate"
+                                        type="date"
+                                        value={contentForm.calDate}
+                                        onChange={(e) =>
+                                          setContentForm((prev) => ({
+                                            ...prev,
+                                            calDate: e.target.value,
+                                          }))
+                                        }
+                                      />
+                                    </div>
 
-                              <Button
-                                className="mt-4"
-                                onClick={() => addKitContent(kit._id)}
-                                disabled={contentLoading}
-                              >
-                                {contentLoading ? "Adding..." : "Add Item"}
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                                    <Button
+                                      className="mt-4"
+                                      onClick={() => addKitContent(kit._id)}
+                                      disabled={contentLoading}
+                                    >
+                                      {contentLoading
+                                        ? "Adding..."
+                                        : "Add Item"}
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+
+                  {/* Pagination */}
+                  <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+                    <div>
+                      Showing {totalKits === 0 ? 0 : pageStart + 1}–
+                      {Math.min(pageEnd, totalKits)} of {totalKits} toolkits
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <span>
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setPage((prev) => Math.min(totalPages, prev + 1))
+                        }
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

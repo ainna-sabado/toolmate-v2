@@ -1,6 +1,7 @@
+// app/api/tools/route.ts
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/config/db";
-import { Tool } from "@/lib/models/Tool.model";
+import ToolService from "@/lib/services/ToolService";
 import { buildFilters } from "@/lib/utils/buildFilters";
 import { mapStorages } from "@/lib/utils/storageMapper";
 
@@ -13,9 +14,8 @@ export async function GET(req: Request) {
 
     const storagesOnly = params.get("storages") === "1";
 
-    const tools = await Tool.find(filters).lean();
+    const tools = await ToolService.getTools(filters);
 
-    // When client only wants distinct storages
     if (storagesOnly) {
       const storages = mapStorages(tools);
       return NextResponse.json({ storages });
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     await connectDB();
 
     const data = await req.json();
-    const tool = await Tool.create(data);
+    const tool = await ToolService.createTool(data);
 
     return NextResponse.json(tool, { status: 201 });
   } catch (err: any) {

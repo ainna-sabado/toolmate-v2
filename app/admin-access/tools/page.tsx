@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useDepartment } from "@/context/DepartmentContext";
 
 import { useTools } from "@/hooks/useTools";
@@ -20,18 +20,137 @@ import {
   TableCell,
 } from "@/components/ui/table";
 
-// 👍 If using shadcn Combobox
 import { Combobox } from "@/components/ui/combobox";
+import { StatusBadge } from "@/components/helpers/StatusBadge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
+import toast from "react-hot-toast";
+
+type ToolRow = {
+  _id: string;
+  name: string;
+  brand?: string;
+  category?: string;
+  eqNumber?: string;
+  qty?: number;
+  mainStorageName?: string;
+  mainStorageCode?: string;
+  qrLocation?: string;
+  storageType?: string;
+  status?: string;
+  auditStatus?: string; // still exists, just not shown/filtered
+};
+
+const TOOL_STATUS_OPTIONS = [
+  "available",
+  "in use",
+  "for calibration",
+  "damaged",
+  "lost",
+  "maintenance",
+  "expired",
+];
+
+const PAGE_SIZE = 15;
+
+function toLabel(value?: string) {
+  if (!value) return "";
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
 
 export default function ToolsPage() {
   const { mainDepartment } = useDepartment();
 
-  // HOOKS
-  const { tools, loading, refresh: refreshTools } = useTools(mainDepartment);
+  const {
+    tools,
+    loading,
+    error: toolsError,
+    refresh: refreshTools,
+    updateTool,
+    deleteTool,
+  } = useTools(mainDepartment);
+
   const { storages, qrLocations, loadQrLocations } = useStorage(mainDepartment);
   const { brands, categories } = useToolMeta();
 
-  // FORM
+  // Filters + pagination
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [storageFilter, setStorageFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
+
+  const storageNameOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (storages || [])
+            .map((s: any) => s.mainStorageName as string)
+            .filter(Boolean)
+        )
+      ),
+    [storages]
+  );
+
+  const filteredTools: ToolRow[] = useMemo(() => {
+    const base: ToolRow[] = Array.isArray(tools) ? (tools as ToolRow[]) : [];
+    let result = [...base];
+
+    if (storageFilter !== "all" && storageFilter) {
+      result = result.filter((tool) => tool.mainStorageName === storageFilter);
+    }
+
+    if (statusFilter !== "all" && statusFilter) {
+      result = result.filter(
+        (tool) => (tool.status || "available") === statusFilter
+      );
+    }
+
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter((tool) => {
+        return (
+          tool.name?.toLowerCase().includes(term) ||
+          tool.eqNumber?.toLowerCase().includes(term) ||
+          tool.brand?.toLowerCase().includes(term) ||
+          tool.category?.toLowerCase().includes(term) ||
+          tool.qrLocation?.toLowerCase().includes(term) ||
+          tool.mainStorageName?.toLowerCase().includes(term)
+        );
+      });
+    }
+
+    result.sort((a, b) => a.name.localeCompare(b.name));
+
+    return result;
+  }, [tools, storageFilter, statusFilter, searchTerm]);
+
+  const totalTools = filteredTools.length;
+  const totalPages = Math.max(1, Math.ceil(totalTools / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pageEnd = pageStart + PAGE_SIZE;
+  const paginatedTools = filteredTools.slice(pageStart, pageEnd);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter, storageFilter]);
+
+  // Surface load error as toast as well
+  useEffect(() => {
+    if (toolsError) {
+      toast.error(toolsError);
+    }
+  }, [toolsError]);
+
+  // ---------------------------
+  // Add Tool form state
+  // ---------------------------
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,10 +167,19 @@ export default function ToolsPage() {
     storageType: "",
   });
 
-  // Auto-fill storageCode + storageType when selecting a storage
+  // Keep storageCode + type in sync for ADD form
   useEffect(() => {
-    const selected = storages.find(
-      (s) => s.mainStorageName === form.mainStorageName
+    if (!form.mainStorageName) {
+      setForm((prev) => ({
+        ...prev,
+        mainStorageCode: "",
+        storageType: "",
+      }));
+      return;
+    }
+
+    const selected = (storages || []).find(
+      (s: any) => s.mainStorageName === form.mainStorageName
     );
 
     setForm((prev) => ({
@@ -63,13 +191,13 @@ export default function ToolsPage() {
     loadQrLocations(form.mainStorageName);
   }, [form.mainStorageName, storages, loadQrLocations]);
 
-  // FORM HANDLER
-  const handleChange = (e: any) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  // SUBMIT NEW TOOL
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!mainDepartment) return;
@@ -99,11 +227,11 @@ export default function ToolsPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error || "Failed to save tool.");
 
-      setSuccess("Tool created successfully.");
+      setSuccess("Tool saved successfully!");
+      toast.success("Tool added successfully.");
 
-      // Reset form
       setForm({
         name: "",
         brand: "",
@@ -118,27 +246,80 @@ export default function ToolsPage() {
 
       refreshTools();
     } catch (err: any) {
-      setError(err.message);
+      const msg = err.message || "Something went wrong.";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // NO DEPARTMENT
-  if (!mainDepartment) {
-    return (
-      <div className="p-8 text-center text-gray-500">
-        <p className="font-semibold text-lg mb-2">No Department Selected</p>
-        <p>Please choose a department from Settings.</p>
-      </div>
-    );
-  }
+  // ---------------------------
+  // EDIT TOOL state
+  // ---------------------------
+  const [editingTool, setEditingTool] = useState<ToolRow | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    brand: "",
+    category: "",
+    eqNumber: "",
+    qty: "1",
+    status: "available", // still used in update, just not editable here
+  });
+
+  const openEdit = (tool: ToolRow) => {
+    setEditingTool(tool);
+    setEditForm({
+      name: tool.name || "",
+      brand: tool.brand || "",
+      category: tool.category || "",
+      eqNumber: tool.eqNumber || "",
+      qty: String(tool.qty ?? 1),
+      status: tool.status || "available",
+    });
+  };
+
+  const handleEditChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setEditForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleEditSave = async () => {
+    if (!editingTool) return;
+
+    setEditSaving(true);
+    try {
+      await updateTool(editingTool._id, {
+        name: editForm.name.trim(),
+        brand: editForm.brand.trim() || undefined,
+        category: editForm.category.trim() || undefined,
+        eqNumber: editForm.eqNumber.trim() || undefined,
+        qty: Number(editForm.qty) || 1,
+        // status is NOT changed from here anymore
+      });
+
+      toast.success("Tool updated successfully.");
+      setEditingTool(null);
+    } catch (err: any) {
+      console.error(err);
+      const msg = err.message || "Failed to update tool";
+      toast.error(msg);
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const closeEdit = () => {
+    if (editSaving) return;
+    setEditingTool(null);
+  };
 
   return (
     <div className="max-w-6xl mx-auto py-8 space-y-8">
-      {/* ------------------------------------------------ */}
-      {/* ADD TOOL FORM */}
-      {/* ------------------------------------------------ */}
+      {/* Add Tool */}
       <Card>
         <CardHeader>
           <CardTitle>Add Tool ({mainDepartment})</CardTitle>
@@ -146,7 +327,6 @@ export default function ToolsPage() {
 
         <CardContent>
           <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
-            {/* Name */}
             <div className="md:col-span-2">
               <label className="text-sm mb-1 block">Name *</label>
               <Input
@@ -157,7 +337,6 @@ export default function ToolsPage() {
               />
             </div>
 
-            {/* Brand with Combobox */}
             <div>
               <label className="text-sm mb-1 block">Brand</label>
               <Combobox
@@ -166,12 +345,10 @@ export default function ToolsPage() {
                   setForm((prev) => ({ ...prev, brand: v }))
                 }
                 options={brands}
-                allowCustom
-                placeholder="Select or type a brand"
+                placeholder="Select or type..."
               />
             </div>
 
-            {/* Category with Combobox */}
             <div>
               <label className="text-sm mb-1 block">Category</label>
               <Combobox
@@ -180,12 +357,10 @@ export default function ToolsPage() {
                   setForm((prev) => ({ ...prev, category: v }))
                 }
                 options={categories}
-                allowCustom
-                placeholder="Select or type a category"
+                placeholder="Select or type..."
               />
             </div>
 
-            {/* Eq Number */}
             <div>
               <label className="text-sm mb-1 block">Eq Number</label>
               <Input
@@ -195,9 +370,8 @@ export default function ToolsPage() {
               />
             </div>
 
-            {/* Quantity */}
             <div>
-              <label className="text-sm mb-1 block">Quantity *</label>
+              <label className="text-sm mb-1 block">Qty</label>
               <Input
                 name="qty"
                 type="number"
@@ -207,7 +381,6 @@ export default function ToolsPage() {
               />
             </div>
 
-            {/* Storage selection */}
             <div>
               <label className="text-sm mb-1 block">Main Storage *</label>
               <select
@@ -218,7 +391,7 @@ export default function ToolsPage() {
                 className="border rounded-md px-3 py-2 w-full text-sm"
               >
                 <option value="">Select Storage</option>
-                {storages.map((s) => (
+                {(storages || []).map((s: any) => (
                   <option key={s.mainStorageName} value={s.mainStorageName}>
                     {s.mainStorageName}
                   </option>
@@ -226,7 +399,6 @@ export default function ToolsPage() {
               </select>
             </div>
 
-            {/* Autoload Storage Code */}
             <div>
               <label className="text-sm mb-1 block">Storage Code</label>
               <Input
@@ -237,7 +409,6 @@ export default function ToolsPage() {
               />
             </div>
 
-            {/* QR Location */}
             <div>
               <label className="text-sm mb-1 block">QR Location *</label>
               <select
@@ -248,7 +419,7 @@ export default function ToolsPage() {
                 className="border rounded-md px-3 py-2 w-full text-sm"
               >
                 <option value="">Select QR Location</option>
-                {qrLocations.map((qr) => (
+                {qrLocations.map((qr: string) => (
                   <option key={qr} value={qr}>
                     {qr}
                   </option>
@@ -256,7 +427,6 @@ export default function ToolsPage() {
               </select>
             </div>
 
-            {/* Storage Type */}
             <div>
               <label className="text-sm mb-1 block">Storage Type *</label>
               <Input
@@ -267,7 +437,6 @@ export default function ToolsPage() {
               />
             </div>
 
-            {/* Submit */}
             <div className="md:col-span-2 flex gap-4 items-center">
               <Button type="submit" disabled={submitting}>
                 {submitting ? "Saving..." : "Save Tool"}
@@ -280,54 +449,258 @@ export default function ToolsPage() {
         </CardContent>
       </Card>
 
-      {/* ------------------------------------------------ */}
-      {/* TOOLS TABLE */}
-      {/* ------------------------------------------------ */}
+      {/* Tools Table */}
       <Card>
         <CardHeader>
           <CardTitle>Tools — {mainDepartment}</CardTitle>
         </CardHeader>
 
         <CardContent>
+          {toolsError && (
+            <p className="text-red-500 text-sm mb-2">
+              {toolsError}
+            </p>
+          )}
+
           {loading ? (
             <p>Loading...</p>
-          ) : tools.length === 0 ? (
+          ) : (tools || []).length === 0 ? (
             <p>No tools found for this department.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Brand</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Eq #</TableHead>
-                    <TableHead>Qty</TableHead>
-                    <TableHead>QR Location</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Audit</TableHead>
-                  </TableRow>
-                </TableHeader>
+            <>
+              {/* Filters */}
+              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex flex-1 gap-2">
+                  <Input
+                    placeholder="Search by name, Eq #, brand, category, QR..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="max-w-md"
+                  />
 
-                <TableBody>
-                  {tools.map((tool) => (
-                    <TableRow key={tool._id}>
-                      <TableCell>{tool.name}</TableCell>
-                      <TableCell>{tool.brand || "-"}</TableCell>
-                      <TableCell>{tool.category || "-"}</TableCell>
-                      <TableCell>{tool.eqNumber || "-"}</TableCell>
-                      <TableCell>{tool.qty ?? 1}</TableCell>
-                      <TableCell>{tool.qrLocation}</TableCell>
-                      <TableCell>{tool.status || "available"}</TableCell>
-                      <TableCell>{tool.auditStatus || "pending"}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  <select
+                    className="border rounded-md px-3 py-2 text-sm"
+                    value={storageFilter}
+                    onChange={(e) => setStorageFilter(e.target.value)}
+                  >
+                    <option value="all">All storages</option>
+                    {storageNameOptions.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex gap-2">
+                  <select
+                    className="border rounded-md px-3 py-2 text-sm"
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                  >
+                    <option value="all">All statuses</option>
+                    {TOOL_STATUS_OPTIONS.map((status) => (
+                      <option key={status} value={status}>
+                        {toLabel(status)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {filteredTools.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No tools match your search and filters.
+                </p>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Brand</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead>Eq #</TableHead>
+                          <TableHead>Qty</TableHead>
+                          <TableHead>Main Storage</TableHead>
+                          <TableHead>QR Location</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+
+                      <TableBody>
+                        {paginatedTools.map((tool) => (
+                          <TableRow key={tool._id}>
+                            <TableCell>{tool.name}</TableCell>
+                            <TableCell>{tool.brand || "-"}</TableCell>
+                            <TableCell>{tool.category || "-"}</TableCell>
+                            <TableCell>{tool.eqNumber || "-"}</TableCell>
+                            <TableCell>{tool.qty ?? 1}</TableCell>
+                            <TableCell>{tool.mainStorageName || "-"}</TableCell>
+                            <TableCell>{tool.qrLocation || "-"}</TableCell>
+                            <TableCell>
+                              <StatusBadge
+                                kind="status"
+                                value={tool.status || "available"}
+                              />
+                            </TableCell>
+                            <TableCell className="space-x-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEdit(tool)}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-600"
+                                onClick={async () => {
+                                  const confirmDelete = window.confirm(
+                                    `Delete tool "${tool.name}"?`
+                                  );
+                                  if (!confirmDelete) return;
+
+                                  try {
+                                    await deleteTool(tool._id);
+                                    toast.success("Tool deleted.");
+                                  } catch (err: any) {
+                                    console.error(err);
+                                    const msg =
+                                      err.message || "Failed to delete tool";
+                                    toast.error(msg);
+                                  }
+                                }}
+                              >
+                                Delete
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Pagination */}
+                  <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+                    <div>
+                      Showing {totalTools === 0 ? 0 : pageStart + 1}–
+                      {Math.min(pageEnd, totalTools)} of {totalTools} tools
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <span>
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setPage((prev) => Math.min(totalPages, prev + 1))
+                        }
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Tool Dialog */}
+      <Dialog
+        open={!!editingTool}
+        onOpenChange={(open) => !open && closeEdit()}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Tool</DialogTitle>
+          </DialogHeader>
+
+          {editingTool && (
+            <div className="space-y-4 mt-2">
+              <div>
+                <label className="text-sm mb-1 block">Name *</label>
+                <Input
+                  name="name"
+                  value={editForm.name}
+                  onChange={handleEditChange}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm mb-1 block">Brand</label>
+                  <Combobox
+                    value={editForm.brand}
+                    onValueChange={(v) =>
+                      setEditForm((prev) => ({ ...prev, brand: v }))
+                    }
+                    options={brands}
+                    placeholder="Select or type..."
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm mb-1 block">Category</label>
+                  <Combobox
+                    value={editForm.category}
+                    onValueChange={(v) =>
+                      setEditForm((prev) => ({ ...prev, category: v }))
+                    }
+                    options={categories}
+                    placeholder="Select or type..."
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm mb-1 block">Eq Number</label>
+                  <Input
+                    name="eqNumber"
+                    value={editForm.eqNumber}
+                    onChange={handleEditChange}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm mb-1 block">Qty</label>
+                  <Input
+                    name="qty"
+                    type="number"
+                    min="1"
+                    value={editForm.qty}
+                    onChange={handleEditChange}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={closeEdit} disabled={editSaving}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditSave} disabled={editSaving}>
+              {editSaving ? "Saving..." : "Save changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
