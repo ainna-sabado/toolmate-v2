@@ -43,17 +43,17 @@ export default class ToolKitService {
     // Validate statuses
     if (!TOOLKIT_STATUSES.includes(data.status)) {
       throw new Error(
-        `Invalid toolkit status "${data.status}". Allowed: ${TOOLKIT_STATUSES.join(
-          ", "
-        )}`
+        `Invalid toolkit status "${
+          data.status
+        }". Allowed: ${TOOLKIT_STATUSES.join(", ")}`
       );
     }
 
     if (!TOOLKIT_AUDIT_STATUSES.includes(data.auditStatus)) {
       throw new Error(
-        `Invalid toolkit auditStatus "${data.auditStatus}". Allowed: ${TOOLKIT_AUDIT_STATUSES.join(
-          ", "
-        )}`
+        `Invalid toolkit auditStatus "${
+          data.auditStatus
+        }". Allowed: ${TOOLKIT_AUDIT_STATUSES.join(", ")}`
       );
     }
 
@@ -105,9 +105,7 @@ export default class ToolKitService {
   /**
    * Get Toolkit By ID
    */
-  static async getToolKitById(
-    id: string
-  ): Promise<ToolKitDocument | null> {
+  static async getToolKitById(id: string): Promise<ToolKitDocument | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
     return await ToolKit.findById(id);
   }
@@ -130,9 +128,9 @@ export default class ToolKitService {
 
     if (updates.status && !TOOLKIT_STATUSES.includes(updates.status)) {
       throw new Error(
-        `Invalid toolkit status "${updates.status}". Allowed: ${TOOLKIT_STATUSES.join(
-          ", "
-        )}`
+        `Invalid toolkit status "${
+          updates.status
+        }". Allowed: ${TOOLKIT_STATUSES.join(", ")}`
       );
     }
 
@@ -174,10 +172,7 @@ export default class ToolKitService {
   /**
    * Add a content item
    */
-  static async addContent(
-    kitId: string,
-    item: any
-  ): Promise<ToolKitDocument> {
+  static async addContent(kitId: string, item: any): Promise<ToolKitDocument> {
     if (!mongoose.Types.ObjectId.isValid(kitId)) {
       throw new Error("Invalid toolkit ID");
     }
@@ -238,7 +233,7 @@ export default class ToolKitService {
   }
 
   /**
-   * Delete a single content item
+   * Delete a single content item from a toolkit
    */
   static async deleteContent(
     kitId: string,
@@ -254,18 +249,16 @@ export default class ToolKitService {
     const kit = await ToolKit.findById(kitId);
     if (!kit) throw new Error("Toolkit not found");
 
-    const before = kit.contents.length;
-
-    kit.contents = kit.contents.filter(
-      (c: any) => c._id?.toString() !== contentId
-    );
-
-    if (kit.contents.length === before) {
+    // ✅ Use Mongoose DocumentArray helper instead of reassigning
+    const subdoc = kit.contents.id(contentId as any);
+    if (!subdoc) {
       throw new Error("Content item not found");
     }
 
-    await kit.save();
+    // marks the subdocument for removal
+    subdoc.deleteOne();
 
+    await kit.save();
     return kit;
   }
 }
