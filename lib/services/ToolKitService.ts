@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 import { ToolKit } from "@/lib/models/ToolKit.model";
-import { Tool } from "@/lib/models/Tool.model";
 import type { ToolKitDocument } from "@/lib/models/ToolKit.model";
 
 import { sanitizeStrings } from "@/lib/utils/sanitize";
@@ -17,7 +16,6 @@ export default class ToolKitService {
    * Create a new Toolkit
    */
   static async createToolKit(data: any): Promise<ToolKitDocument> {
-    // Required fields
     const required = [
       "name",
       "kitNumber",
@@ -39,7 +37,7 @@ export default class ToolKitService {
     data.auditStatus ||= "pending";
     data.contents ||= [];
 
-    // Clean strings
+    // Clean fields
     sanitizeStrings(data);
 
     // Validate statuses
@@ -64,12 +62,11 @@ export default class ToolKitService {
       await this.validateContentItem(item);
     }
 
-    // Create
     return await ToolKit.create(data);
   }
 
   /**
-   * Validate content items (shared between create + add)
+   * Validate a single content item (add + update + create)
    */
   static async validateContentItem(item: any) {
     if (!item.name) {
@@ -77,15 +74,20 @@ export default class ToolKitService {
     }
 
     // Qty
-    if (item.qty && item.qty < 1) {
-      throw new Error("Content qty must be >= 1");
+    if (item.qty !== undefined) {
+      const qtyNum = Number(item.qty);
+      if (isNaN(qtyNum) || qtyNum < 1) {
+        throw new Error("Content qty must be a valid number >= 1");
+      }
+      item.qty = qtyNum;
     }
 
-    // Clean fields
     sanitizeStrings(item);
 
-    // Audit status
-    validateAuditStatus(item.auditStatus);
+    // Audit status (optional)
+    if (item.auditStatus) {
+      validateAuditStatus(item.auditStatus);
+    }
 
     // Unique eqNumber
     if (item.eqNumber) {
@@ -103,14 +105,79 @@ export default class ToolKitService {
   /**
    * Get Toolkit By ID
    */
-  static async getToolKitById(id: string): Promise<ToolKitDocument | null> {
+  static async getToolKitById(
+    id: string
+  ): Promise<ToolKitDocument | null> {
+    if (!mongoose.Types.ObjectId.isValid(id)) return null;
     return await ToolKit.findById(id);
+  }
+
+  /**
+   * Update Toolkit (partial)
+   */
+  static async updateToolKit(
+    id: string,
+    updates: any
+  ): Promise<ToolKitDocument | null> {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new Error("Invalid toolkit ID");
+    }
+
+    // Prevent contents editing here
+    if ("contents" in updates) delete updates.contents;
+
+    sanitizeStrings(updates);
+
+    if (updates.status && !TOOLKIT_STATUSES.includes(updates.status)) {
+      throw new Error(
+        `Invalid toolkit status "${updates.status}". Allowed: ${TOOLKIT_STATUSES.join(
+          ", "
+        )}`
+      );
+    }
+
+    if (
+      updates.auditStatus &&
+      !TOOLKIT_AUDIT_STATUSES.includes(updates.auditStatus)
+    ) {
+      throw new Error(
+        `Invalid toolkit auditStatus "${
+          updates.auditStatus
+        }". Allowed: ${TOOLKIT_AUDIT_STATUSES.join(", ")}`
+      );
+    }
+
+    const kit = await ToolKit.findByIdAndUpdate(id, updates, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!kit) throw new Error("Toolkit not found");
+
+    return kit;
+  }
+
+  /**
+   * Delete Toolkit
+   */
+  static async deleteToolKit(id: string): Promise<ToolKitDocument | null> {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new Error("Invalid toolkit ID");
+    }
+
+    const deleted = await ToolKit.findByIdAndDelete(id);
+    if (!deleted) throw new Error("Toolkit not found");
+
+    return deleted;
   }
 
   /**
    * Add a content item
    */
-  static async addContent(kitId: string, item: any): Promise<ToolKitDocument> {
+  static async addContent(
+    kitId: string,
+    item: any
+  ): Promise<ToolKitDocument> {
     if (!mongoose.Types.ObjectId.isValid(kitId)) {
       throw new Error("Invalid toolkit ID");
     }
@@ -118,10 +185,85 @@ export default class ToolKitService {
     const kit = await ToolKit.findById(kitId);
     if (!kit) throw new Error("Toolkit not found");
 
-    // Validate item
+    if (!item.auditStatus) item.auditStatus = "pending";
+
     await this.validateContentItem(item);
 
     kit.contents.push(item);
+    await kit.save();
+
+    return kit;
+  }
+
+  /**
+   * Update a single content item
+   */
+  static async updateContent(
+    kitId: string,
+    contentId: string,
+    updates: any
+  ): Promise<ToolKitDocument> {
+    if (!mongoose.Types.ObjectId.isValid(kitId)) {
+      throw new Error("Invalid toolkit ID");
+    }
+    if (!mongoose.Types.ObjectId.isValid(contentId)) {
+      throw new Error("Invalid content item ID");
+    }
+
+    const kit = await ToolKit.findById(kitId);
+    if (!kit) throw new Error("Toolkit not found");
+
+    const idx = kit.contents.findIndex(
+      (c: any) => c._id?.toString() === contentId
+    );
+    if (idx === -1) throw new Error("Content item not found");
+
+    const existingItem: any =
+      typeof kit.contents[idx].toObject === "function"
+        ? kit.contents[idx].toObject()
+        : kit.contents[idx];
+
+    const merged = { ...existingItem, ...updates };
+
+    if (!merged.auditStatus) {
+      merged.auditStatus = existingItem.auditStatus || "pending";
+    }
+
+    await this.validateContentItem(merged);
+
+    kit.contents[idx] = merged;
+    await kit.save();
+
+    return kit;
+  }
+
+  /**
+   * Delete a single content item
+   */
+  static async deleteContent(
+    kitId: string,
+    contentId: string
+  ): Promise<ToolKitDocument> {
+    if (!mongoose.Types.ObjectId.isValid(kitId)) {
+      throw new Error("Invalid toolkit ID");
+    }
+    if (!mongoose.Types.ObjectId.isValid(contentId)) {
+      throw new Error("Invalid content item ID");
+    }
+
+    const kit = await ToolKit.findById(kitId);
+    if (!kit) throw new Error("Toolkit not found");
+
+    const before = kit.contents.length;
+
+    kit.contents = kit.contents.filter(
+      (c: any) => c._id?.toString() !== contentId
+    );
+
+    if (kit.contents.length === before) {
+      throw new Error("Content item not found");
+    }
+
     await kit.save();
 
     return kit;

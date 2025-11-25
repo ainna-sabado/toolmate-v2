@@ -23,6 +23,13 @@ import {
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
 import { StatusBadge } from "@/components/helpers/StatusBadge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 type KitContentItem = {
   _id: string;
@@ -72,7 +79,13 @@ export default function ToolKitsPage() {
     kits,
     storageLocations,
     loading,
+    error: kitsError,
     refresh: refreshKits,
+    updateToolkit,
+    deleteToolkit,
+    // NOTE: we keep addKitContent in the hook, but we DON'T use it here
+    updateKitContent: updateKitContentAPI,
+    deleteKitContent: deleteKitContentAPI,
   } = useToolKits(mainDepartment);
 
   const { storages, qrLocations, loadQrLocations } = useStorage(mainDepartment);
@@ -92,7 +105,7 @@ export default function ToolKitsPage() {
     status: "available",
   });
 
-  // Content form
+  // Content form (for ADD)
   const [contentForm, setContentForm] = useState({
     name: "",
     brand: "",
@@ -130,7 +143,7 @@ export default function ToolKitsPage() {
   );
 
   const filteredKits: ToolKitRow[] = useMemo(() => {
-    const base = (kits || []) as ToolKitRow[];
+    const base: ToolKitRow[] = Array.isArray(kits) ? (kits as ToolKitRow[]) : [];
     let result = [...base];
 
     if (storageFilter !== "all" && storageFilter) {
@@ -153,7 +166,8 @@ export default function ToolKitsPage() {
       });
     }
 
-    result.sort((a, b) => a.name.localeCompare(b.name));
+    // Safe sort in case any record is missing name
+    result.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
     return result;
   }, [kits, storageFilter, statusFilter, searchTerm]);
@@ -207,6 +221,7 @@ export default function ToolKitsPage() {
     setExpanded((prev) => (prev === id ? null : id));
   };
 
+  // Create toolkit (POST /api/toolkits)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!mainDepartment) return;
@@ -261,7 +276,8 @@ export default function ToolKitsPage() {
     }
   };
 
-  const addKitContent = async (kitId: string) => {
+  // ADD Kit Content – use direct POST to the contents endpoint (old working pattern)
+  const handleAddKitContent = async (kitId: string) => {
     setContentLoading(true);
     setContentError(null);
     setContentSuccess(null);
@@ -272,7 +288,7 @@ export default function ToolKitsPage() {
         brand: contentForm.brand.trim() || undefined,
         category: contentForm.category.trim() || undefined,
         eqNumber: contentForm.eqNumber.trim(),
-        qty: Number(contentForm.qty),
+        qty: Number(contentForm.qty) || 1,
         calDate: contentForm.calDate || null,
         auditStatus: "pending",
       };
@@ -286,7 +302,8 @@ export default function ToolKitsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to add kit item.");
 
-      refreshKits();
+      // Reload from API so contents (with _id) are fresh
+      await refreshKits();
 
       setContentForm({
         name: "",
@@ -303,6 +320,163 @@ export default function ToolKitsPage() {
       setContentError(err.message || "Something went wrong.");
     } finally {
       setContentLoading(false);
+    }
+  };
+
+  // ---------------------------
+  // EDIT TOOLKIT state
+  // ---------------------------
+  const [editingKit, setEditingKit] = useState<ToolKitRow | null>(null);
+  const [editKitSaving, setEditKitSaving] = useState(false);
+  const [editKitForm, setEditKitForm] = useState({
+    name: "",
+    kitNumber: "",
+    brand: "",
+    category: "",
+    status: "available",
+  });
+
+  const openEditKit = (kit: ToolKitRow) => {
+    setEditingKit(kit);
+    setEditKitForm({
+      name: kit.name || "",
+      kitNumber: kit.kitNumber || "",
+      brand: (kit as any).brand || "",
+      category: (kit as any).category || "",
+      status: kit.status || "available",
+    });
+  };
+
+  const handleEditKitChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setEditKitForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleEditKitSave = async () => {
+    if (!editingKit) return;
+
+    setEditKitSaving(true);
+    try {
+      const payload: any = {
+        name: editKitForm.name.trim(),
+        kitNumber: editKitForm.kitNumber.trim(),
+        brand: editKitForm.brand.trim() || undefined,
+        category: editKitForm.category.trim() || undefined,
+        status: editKitForm.status,
+      };
+
+      await updateToolkit(editingKit._id, payload);
+      setEditingKit(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setEditKitSaving(false);
+    }
+  };
+
+  const closeEditKit = () => {
+    if (editKitSaving) return;
+    setEditingKit(null);
+  };
+
+  const handleDeleteKit = async (kit: ToolKitRow) => {
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete toolkit "${kit.name}"?\n\nThis will delete the toolkit including all kit contents.`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      await deleteToolkit(kit._id);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // ---------------------------
+  // EDIT KIT CONTENT state
+  // ---------------------------
+  const [editingContentKitId, setEditingContentKitId] = useState<string | null>(
+    null
+  );
+  const [editingContent, setEditingContent] = useState<KitContentItem | null>(
+    null
+  );
+  const [editContentSaving, setEditContentSaving] = useState(false);
+  const [editContentForm, setEditContentForm] = useState({
+    name: "",
+    brand: "",
+    category: "",
+    eqNumber: "",
+    qty: "1",
+    calDate: "",
+  });
+
+  const openEditContent = (kitId: string, item: KitContentItem) => {
+    setEditingContentKitId(kitId);
+    setEditingContent(item);
+    setEditContentForm({
+      name: item.name || "",
+      brand: item.brand || "",
+      category: item.category || "",
+      eqNumber: item.eqNumber || "",
+      qty: String(item.qty ?? 1),
+      calDate: item.calDate ? item.calDate.substring(0, 10) : "",
+    });
+  };
+
+  const handleEditContentChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const { name, value } = e.target;
+    setEditContentForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleEditContentSave = async () => {
+    if (!editingContentKitId || !editingContent) return;
+
+    setEditContentSaving(true);
+    try {
+      const payload = {
+        name: editContentForm.name.trim(),
+        brand: editContentForm.brand.trim() || undefined,
+        category: editContentForm.category.trim() || undefined,
+        eqNumber: editContentForm.eqNumber.trim() || undefined,
+        qty: Number(editContentForm.qty) || 1,
+        calDate: editContentForm.calDate || null,
+      };
+
+      await updateKitContentAPI(
+        editingContentKitId,
+        editingContent._id,
+        payload
+      );
+      setEditingContent(null);
+      setEditingContentKitId(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setEditContentSaving(false);
+    }
+  };
+
+  const closeEditContent = () => {
+    if (editContentSaving) return;
+    setEditingContent(null);
+    setEditingContentKitId(null);
+  };
+
+  const handleDeleteContent = async (kitId: string, item: KitContentItem) => {
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete "${item.name}" from this toolkit?`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      await deleteKitContentAPI(kitId, item._id);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -460,6 +634,10 @@ export default function ToolKitsPage() {
         </CardHeader>
 
         <CardContent>
+          {kitsError && (
+            <p className="text-red-500 text-sm mb-2">{kitsError}</p>
+          )}
+
           {loading ? (
             <p>Loading...</p>
           ) : (kits || []).length === 0 ? (
@@ -520,7 +698,7 @@ export default function ToolKitsPage() {
                         <TableHead>Main Storage</TableHead>
                         <TableHead>QR Location</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead></TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
 
@@ -540,7 +718,22 @@ export default function ToolKitsPage() {
                               <TableCell>
                                 <StatusBadge value={kit.status} />
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="space-x-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openEditKit(kit)}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-red-600"
+                                  onClick={() => handleDeleteKit(kit)}
+                                >
+                                  Delete
+                                </Button>
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -578,13 +771,19 @@ export default function ToolKitsPage() {
                                             <TableHead>Eq #</TableHead>
                                             <TableHead>Qty</TableHead>
                                             <TableHead>Cal</TableHead>
+                                            <TableHead>Actions</TableHead>
                                           </TableRow>
                                         </TableHeader>
 
                                         <TableBody>
                                           {kit.contents.map(
-                                            (item: KitContentItem) => (
-                                              <TableRow key={item._id}>
+                                            (item: KitContentItem, idx) => (
+                                              <TableRow
+                                                key={
+                                                  item._id ||
+                                                  `${kit._id}-content-${idx}`
+                                                }
+                                              >
                                                 <TableCell>
                                                   {item.name}
                                                 </TableCell>
@@ -606,6 +805,33 @@ export default function ToolKitsPage() {
                                                         item.calDate
                                                       ).toLocaleDateString()
                                                     : "N/A"}
+                                                </TableCell>
+                                                <TableCell className="space-x-1">
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                      openEditContent(
+                                                        kit._id,
+                                                        item
+                                                      )
+                                                    }
+                                                  >
+                                                    Edit
+                                                  </Button>
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="text-red-600"
+                                                    onClick={() =>
+                                                      handleDeleteContent(
+                                                        kit._id,
+                                                        item
+                                                      )
+                                                    }
+                                                  >
+                                                    Delete
+                                                  </Button>
                                                 </TableCell>
                                               </TableRow>
                                             )
@@ -704,7 +930,9 @@ export default function ToolKitsPage() {
 
                                     <Button
                                       className="mt-4"
-                                      onClick={() => addKitContent(kit._id)}
+                                      onClick={() =>
+                                        handleAddKitContent(kit._id)
+                                      }
                                       disabled={contentLoading}
                                     >
                                       {contentLoading
@@ -757,6 +985,189 @@ export default function ToolKitsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Toolkit Dialog */}
+      <Dialog
+        open={!!editingKit}
+        onOpenChange={(open) => !open && closeEditKit()}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Toolkit</DialogTitle>
+          </DialogHeader>
+
+          {editingKit && (
+            <div className="space-y-4 mt-2">
+              <div>
+                <label className="text-sm mb-1 block">Name *</label>
+                <Input
+                  name="name"
+                  value={editKitForm.name}
+                  onChange={handleEditKitChange}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm mb-1 block">Kit Number *</label>
+                  <Input
+                    name="kitNumber"
+                    value={editKitForm.kitNumber}
+                    onChange={handleEditKitChange}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm mb-1 block">Brand</label>
+                  <Combobox
+                    value={editKitForm.brand}
+                    onValueChange={(v) =>
+                      setEditKitForm((prev) => ({ ...prev, brand: v }))
+                    }
+                    options={brands}
+                    placeholder="Select or type..."
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm mb-1 block">Category</label>
+                  <Combobox
+                    value={editKitForm.category}
+                    onValueChange={(v) =>
+                      setEditKitForm((prev) => ({ ...prev, category: v }))
+                    }
+                    options={categories}
+                    placeholder="Select or type..."
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm mb-1 block">Status</label>
+                  <select
+                    name="status"
+                    value={editKitForm.status}
+                    onChange={handleEditKitChange}
+                    className="border rounded-md px-3 py-2 w-full text-sm"
+                  >
+                    {TOOLKIT_STATUS_OPTIONS.map((status) => (
+                      <option key={status} value={status}>
+                        {toLabel(status)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={closeEditKit}
+              disabled={editKitSaving}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleEditKitSave} disabled={editKitSaving}>
+              {editKitSaving ? "Saving..." : "Save changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Kit Content Dialog */}
+      <Dialog
+        open={!!editingContent}
+        onOpenChange={(open) => !open && closeEditContent()}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Kit Item</DialogTitle>
+          </DialogHeader>
+
+          {editingContent && (
+            <div className="space-y-4 mt-2">
+              <div>
+                <label className="text-sm mb-1 block">Name *</label>
+                <Input
+                  name="name"
+                  value={editContentForm.name}
+                  onChange={handleEditContentChange}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm mb-1 block">Brand</label>
+                  <Input
+                    name="brand"
+                    value={editContentForm.brand}
+                    onChange={handleEditContentChange}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm mb-1 block">Category</label>
+                  <Input
+                    name="category"
+                    value={editContentForm.category}
+                    onChange={handleEditContentChange}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm mb-1 block">Eq Number</label>
+                  <Input
+                    name="eqNumber"
+                    value={editContentForm.eqNumber}
+                    onChange={handleEditContentChange}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm mb-1 block">Qty</label>
+                  <Input
+                    name="qty"
+                    type="number"
+                    min="1"
+                    value={editContentForm.qty}
+                    onChange={handleEditContentChange}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm mb-1 block">Cal Date</label>
+                  <Input
+                    name="calDate"
+                    type="date"
+                    value={editContentForm.calDate}
+                    onChange={handleEditContentChange}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={closeEditContent}
+              disabled={editContentSaving}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEditContentSave}
+              disabled={editContentSaving}
+            >
+              {editContentSaving ? "Saving..." : "Save changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
