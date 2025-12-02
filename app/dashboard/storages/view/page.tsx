@@ -1,6 +1,7 @@
 // app/dashboard/storages/view/page.tsx
 "use client";
 
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useDepartment } from "@/context/DepartmentContext";
 import { useStorageDetailDashboard } from "@/hooks/useStorageDetailDashboard";
@@ -15,7 +16,8 @@ import EQ5044ReportCard from "@/components/audit/EQ5044ReportCard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-export default function StorageDetailPage() {
+// 👇 All your existing logic moved into an inner component
+function StorageDetailContent() {
   const searchParams = useSearchParams();
   const { mainDepartment } = useDepartment();
 
@@ -163,5 +165,20 @@ export default function StorageDetailPage() {
         />
       </div>
     </div>
+  );
+}
+
+// 👇 Default export now just wraps content in Suspense
+export default function StorageDetailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">Loading storage dashboard…</p>
+        </div>
+      }
+    >
+      <StorageDetailContent />
+    </Suspense>
   );
 }
