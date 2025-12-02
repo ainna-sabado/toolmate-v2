@@ -64,7 +64,7 @@ export default function Homepage() {
         {/* Dashboard */}
         <Card>
           <CardContent className="p-6 text-center">
-            <Link href="/dashboard">
+            <Link href="/dashboard/storages">
               <Button variant="secondary" className="w-full" size="lg">
                 Main Storage Dashboards
               </Button>
