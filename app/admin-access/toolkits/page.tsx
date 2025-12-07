@@ -20,7 +20,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Pen, Trash2 } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
 import { StatusBadge } from "@/components/helpers/StatusBadge";
 import {
@@ -704,28 +704,39 @@ export default function ToolKitsPage() {
                               <TableCell className="space-x-1">
                                 <Button
                                   variant="ghost"
-                                  size="sm"
+                                  size="icon"
+                                  className="h-7 w-7 p-1"
                                   onClick={() => openEditKit(kit)}
+                                  aria-label="Edit toolkit"
                                 >
-                                  Edit
+                                  <Pen className="h-3 w-3" />
                                 </Button>
+
                                 <Button
                                   variant="ghost"
-                                  size="sm"
-                                  className="text-red-600"
+                                  size="icon"
+                                  className="h-7 w-7 p-1 text-red-600"
                                   onClick={() => handleDeleteKit(kit)}
+                                  aria-label="Delete toolkit"
                                 >
-                                  Delete
+                                  <Trash2 className="h-3 w-3" />
                                 </Button>
+
                                 <Button
                                   variant="ghost"
-                                  size="sm"
+                                  size="icon"
+                                  className="h-7 w-7 p-1"
                                   onClick={() => toggleExpand(kit._id)}
+                                  aria-label={
+                                    isOpen
+                                      ? "Collapse contents"
+                                      : "Expand contents"
+                                  }
                                 >
                                   {isOpen ? (
-                                    <ChevronUp size={18} />
+                                    <ChevronUp className="h-3 w-3" />
                                   ) : (
-                                    <ChevronDown size={18} />
+                                    <ChevronDown className="h-3 w-3" />
                                   )}
                                 </Button>
                               </TableCell>
@@ -792,28 +803,32 @@ export default function ToolKitsPage() {
                                                 <TableCell className="space-x-1">
                                                   <Button
                                                     variant="ghost"
-                                                    size="sm"
+                                                    size="icon"
+                                                    className="h-7 w-7 p-1"
                                                     onClick={() =>
                                                       openEditContent(
                                                         kit._id,
                                                         item
                                                       )
                                                     }
+                                                    aria-label="Edit kit item"
                                                   >
-                                                    Edit
+                                                    <Pen className="h-3 w-3" />
                                                   </Button>
+
                                                   <Button
                                                     variant="ghost"
-                                                    size="sm"
-                                                    className="text-red-600"
+                                                    size="icon"
+                                                    className="h-7 w-7 p-1 text-red-600"
                                                     onClick={() =>
                                                       handleDeleteContent(
                                                         kit._id,
                                                         item
                                                       )
                                                     }
+                                                    aria-label="Delete kit item"
                                                   >
-                                                    Delete
+                                                    <Trash2 className="h-3 w-3" />
                                                   </Button>
                                                 </TableCell>
                                               </TableRow>

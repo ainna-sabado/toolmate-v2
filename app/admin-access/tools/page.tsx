@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 
 import toast from "react-hot-toast";
+import { Pen, Trash2 } from "lucide-react";
 
 type ToolRow = {
   _id: string;
@@ -546,15 +547,18 @@ export default function ToolsPage() {
                             <TableCell className="space-x-1">
                               <Button
                                 variant="ghost"
-                                size="sm"
+                                size="icon"
+                                className="h-7 w-7 p-1"
                                 onClick={() => openEdit(tool)}
+                                aria-label="Edit tool"
                               >
-                                Edit
+                                <Pen className="h-3 w-3" />
                               </Button>
+
                               <Button
                                 variant="ghost"
-                                size="sm"
-                                className="text-red-600"
+                                size="icon"
+                                className="h-7 w-7 p-1 text-red-600"
                                 onClick={async () => {
                                   const confirmDelete = window.confirm(
                                     `Delete tool "${tool.name}"?`
@@ -571,8 +575,9 @@ export default function ToolsPage() {
                                     toast.error(msg);
                                   }
                                 }}
+                                aria-label="Delete tool"
                               >
-                                Delete
+                                <Trash2 className="h-3 w-3" />
                               </Button>
                             </TableCell>
                           </TableRow>
