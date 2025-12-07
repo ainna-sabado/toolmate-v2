@@ -1,49 +1,69 @@
-// hooks/useStorage.ts
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
 
-export function useStorage(mainDepartment?: string) {
-  const [storages, setStorages] = useState<any[]>([]);
-  const [qrLocations, setQrLocations] = useState<string[]>([]);
+// Match StorageLocation model shape we care about
+type QrLocation = {
+  _id: string;
+  rowName: string;
+  qrCode: string;
+};
 
+type StorageLocation = {
+  _id: string;
+  mainDepartment: string;
+  mainStorageName: string;
+  mainStorageCode: string;
+  storageType: string;
+  qrLocations?: QrLocation[];
+};
+
+export function useStorage(mainDepartment?: string) {
+  const [storages, setStorages] = useState<StorageLocation[]>([]);
+  const [qrLocations, setQrLocations] = useState<QrLocation[]>([]);
+
+  // ------------------------
+  // LOAD MAIN STORAGES
+  // ------------------------
   const loadStorages = useCallback(async () => {
     if (!mainDepartment) return;
 
     try {
       const res = await fetch(
-        `/api/tools?mainDepartment=${encodeURIComponent(mainDepartment)}&storages=1`
+        `/api/storage-locations?mainDepartment=${encodeURIComponent(
+          mainDepartment
+        )}`
       );
       const data = await res.json();
-      setStorages(data.storages || []);
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to load storages");
+      }
+
+      setStorages(data || []);
     } catch (err) {
       console.error("Failed to load storages:", err);
     }
   }, [mainDepartment]);
 
+  // ------------------------
+  // LOAD QR LOCATIONS FOR A GIVEN STORAGE
+  // (Now purely from the already-loaded storages)
+  // ------------------------
   const loadQrLocations = useCallback(
-    async (storageName: string) => {
-      if (!mainDepartment || !storageName) return;
-
-      try {
-        const res = await fetch(
-          `/api/tools?mainDepartment=${encodeURIComponent(
-            mainDepartment
-          )}&mainStorageName=${encodeURIComponent(storageName)}`
-        );
-        const data = await res.json();
-
-        const uniq = new Set<string>();
-        data.tools?.forEach((t: any) => {
-          if (t.qrLocation) uniq.add(t.qrLocation);
-        });
-
-        setQrLocations([...uniq]);
-      } catch (err) {
-        console.error("Failed to load QR locations:", err);
+    (storageName: string) => {
+      if (!storageName) {
+        setQrLocations([]);
+        return;
       }
+
+      const storage = storages.find(
+        (s) => s.mainStorageName === storageName
+      );
+
+      setQrLocations(storage?.qrLocations || []);
     },
-    [mainDepartment]
+    [storages]
   );
 
   useEffect(() => {

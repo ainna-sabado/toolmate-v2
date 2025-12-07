@@ -143,7 +143,9 @@ export default function ToolKitsPage() {
   );
 
   const filteredKits: ToolKitRow[] = useMemo(() => {
-    const base: ToolKitRow[] = Array.isArray(kits) ? (kits as ToolKitRow[]) : [];
+    const base: ToolKitRow[] = Array.isArray(kits)
+      ? (kits as ToolKitRow[])
+      : [];
     let result = [...base];
 
     if (storageFilter !== "all" && storageFilter) {
@@ -426,9 +428,7 @@ export default function ToolKitsPage() {
     });
   };
 
-  const handleEditContentChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleEditContentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setEditContentForm((prev) => ({ ...prev, [name]: value }));
   };
@@ -573,18 +573,17 @@ export default function ToolKitsPage() {
             </div>
 
             <div>
-              <label className="text-sm mb-1 block">QR Location *</label>
+              <label className="text-sm mb-1 block">QR Location</label>
               <select
                 name="qrLocation"
                 value={form.qrLocation}
                 onChange={handleToolkitFormChange}
-                required
                 className="border rounded-md px-3 py-2 w-full text-sm"
               >
                 <option value="">Select QR Location</option>
-                {qrLocations.map((qr: string) => (
-                  <option key={qr} value={qr}>
-                    {qr}
+                {qrLocations.map((loc) => (
+                  <option key={loc._id} value={loc.qrCode}>
+                    {loc.rowName} ({loc.qrCode})
                   </option>
                 ))}
               </select>
@@ -598,22 +597,6 @@ export default function ToolKitsPage() {
                 readOnly
                 className="bg-gray-100 text-gray-500"
               />
-            </div>
-
-            <div>
-              <label className="text-sm mb-1 block">Status</label>
-              <select
-                name="status"
-                value={form.status}
-                onChange={handleToolkitFormChange}
-                className="border rounded-md px-3 py-2 w-full text-sm"
-              >
-                {TOOLKIT_STATUS_OPTIONS.map((status) => (
-                  <option key={status} value={status}>
-                    {toLabel(status)}
-                  </option>
-                ))}
-              </select>
             </div>
 
             <div className="md:col-span-2 flex items-center gap-4">
@@ -1041,22 +1024,6 @@ export default function ToolKitsPage() {
                     options={categories}
                     placeholder="Select or type..."
                   />
-                </div>
-
-                <div>
-                  <label className="text-sm mb-1 block">Status</label>
-                  <select
-                    name="status"
-                    value={editKitForm.status}
-                    onChange={handleEditKitChange}
-                    className="border rounded-md px-3 py-2 w-full text-sm"
-                  >
-                    {TOOLKIT_STATUS_OPTIONS.map((status) => (
-                      <option key={status} value={status}>
-                        {toLabel(status)}
-                      </option>
-                    ))}
-                  </select>
                 </div>
               </div>
             </div>

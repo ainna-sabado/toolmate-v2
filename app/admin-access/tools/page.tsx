@@ -410,18 +410,17 @@ export default function ToolsPage() {
             </div>
 
             <div>
-              <label className="text-sm mb-1 block">QR Location *</label>
+              <label className="text-sm mb-1 block">QR Location</label>
               <select
                 name="qrLocation"
                 value={form.qrLocation}
                 onChange={handleChange}
-                required
                 className="border rounded-md px-3 py-2 w-full text-sm"
               >
                 <option value="">Select QR Location</option>
-                {qrLocations.map((qr: string) => (
-                  <option key={qr} value={qr}>
-                    {qr}
+                {qrLocations.map((loc) => (
+                  <option key={loc._id} value={loc.qrCode}>
+                    {loc.rowName} ({loc.qrCode})
                   </option>
                 ))}
               </select>
@@ -457,9 +456,7 @@ export default function ToolsPage() {
 
         <CardContent>
           {toolsError && (
-            <p className="text-red-500 text-sm mb-2">
-              {toolsError}
-            </p>
+            <p className="text-red-500 text-sm mb-2">{toolsError}</p>
           )}
 
           {loading ? (

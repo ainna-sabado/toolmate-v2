@@ -87,12 +87,12 @@ function StorageDetailContent() {
         <StatCard
           label="Total tools"
           value={data.totalTools}
-          hint={`${data.individualToolsTotal} tools · ${data.toolkitsTotal} kits`}
+          hint={`${data.individualToolsTotal} tool/s · ${data.toolkitsTotal} kit/s`}
         />
         <StatCard
           label="Tools audited this cycle"
           value={data.toolsAudited}
-          hint="Tools + completed kits"
+          hint="tools + completed kits"
         />
         <StatCard label="Remaining tools" value={data.remainingTools} />
         <StatCard label="Completion" value={`${data.completionPercent}%`} />
@@ -106,7 +106,7 @@ function StorageDetailContent() {
           <Card>
             <CardContent className="p-4">
               <h2 className="mb-2 text-sm font-semibold">
-                Tool & toolkit status distribution
+                Tool & Toolkit Status Distribution
               </h2>
               <ToolStatusDonutChart statusCounts={data.statusCounts} />
             </CardContent>
@@ -148,7 +148,7 @@ function StorageDetailContent() {
                 className="w-fit bg-white text-blue-700 hover:bg-blue-100 text-xs"
                 type="button"
               >
-                Scan QR to start audit
+                Scan QR to Start Audit
               </Button>
             </CardContent>
           </Card>
@@ -181,7 +181,7 @@ function StorageDetailContent() {
                   View and print the EQ5044-style inventory report for all
                   tools, toolkits and kit contents in{" "}
                   <span className="text-sm font-medium text-gray-900">
-                    {data.mainStorageCode || "—"}
+                    {data.mainStorageName || "—"}
                   </span>
                   .
                 </p>

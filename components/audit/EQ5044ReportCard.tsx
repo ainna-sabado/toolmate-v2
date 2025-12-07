@@ -78,6 +78,19 @@ type Props = {
   onBack: () => void;
 };
 
+type QrLocationInfo = {
+  rowName: string;
+  qrCode: string;
+};
+
+type StorageLocationLight = {
+  _id: string;
+  mainDepartment: string;
+  mainStorageName: string;
+  mainStorageCode: string;
+  qrLocations?: QrLocationInfo[];
+};
+
 export default function EQ5044ReportCard({
   mainDepartment,
   mainStorageName,
@@ -87,6 +100,9 @@ export default function EQ5044ReportCard({
   const [report, setReport] = useState<Eq5044Report | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [qrLocationLabels, setQrLocationLabels] = useState<
+    Record<string, string>
+  >({});
 
   // Ref for the *printable* content: from header down to footer
   const printRef = useRef<HTMLDivElement | null>(null);
@@ -131,6 +147,55 @@ export default function EQ5044ReportCard({
       setLoading(false);
     }
   }, [mainDepartment, mainStorageName, mainStorageCode]);
+
+  // ----------------------------
+  // Load rowName for each qrLocation from Storage Settings
+  // ----------------------------
+  useEffect(() => {
+    const loadLocationLabels = async () => {
+      if (!report) return;
+
+      try {
+        // Fetch storages for this department
+        const params = new URLSearchParams({
+          mainDepartment: report.header.mainDepartment,
+        });
+
+        const res = await fetch(`/api/storage-locations?${params.toString()}`);
+        const data: StorageLocationLight[] = await res.json();
+
+        if (!res.ok) {
+          console.error("Failed to load storage locations for labels:", data);
+          return;
+        }
+
+        // Find the storage this report is about
+        const storage = data.find(
+          (s) =>
+            s.mainStorageName === report.header.mainStorageName &&
+            s.mainStorageCode === report.header.mainStorageCode
+        );
+
+        if (!storage || !Array.isArray(storage.qrLocations)) {
+          return;
+        }
+
+        // Build qrCode -> "rowName (qrCode)" map
+        const map: Record<string, string> = {};
+        for (const qr of storage.qrLocations) {
+          if (!qr.qrCode) continue;
+          const rowLabel = qr.rowName || "Row";
+          map[qr.qrCode] = `${rowLabel} (${qr.qrCode})`;
+        }
+
+        setQrLocationLabels(map);
+      } catch (err) {
+        console.error("Error loading QR location labels:", err);
+      }
+    };
+
+    loadLocationLabels();
+  }, [report]);
 
   // ----------------------------
   // Export (header → footer) as PDF
@@ -225,7 +290,7 @@ export default function EQ5044ReportCard({
     col.cycleNumber !== null && col.cycleNumber % 6 === 0;
 
   return (
-    <div className="space-y-4 rounded-lg border bg-white p-4 text-xs text-gray-900 print:border-0 print:p-0 print:bg-white">
+    <div className="space-y-4 rounded-lg border bg-white p-4 text-gray-900 print:border-0 print:p-0 print:bg-white">
       {/* Controls (hidden on print/export content) */}
       <div className="mb-3 flex items-center justify-between print:hidden">
         <div className="flex items-center gap-2">
@@ -286,84 +351,61 @@ export default function EQ5044ReportCard({
         </header>
 
         {/* Summary section */}
-        <section className="grid gap-3 border-b pb-3 text-[11px] md:grid-cols-3">
-          <div className="space-y-1">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-700">
-              Inventory summary
-            </p>
-            <p>
-              Total tools &amp; kits:{" "}
-              <span className="font-medium">{summary.totalTools}</span>
-            </p>
-            <p>
-              Audited (current cycle):{" "}
-              <span className="font-medium">{summary.toolsAudited}</span>
-            </p>
-            <p>
-              Remaining:{" "}
-              <span className="font-medium">{summary.remainingTools}</span>
-            </p>
-            <p>
-              Completion: <span className="font-medium">{completion}%</span>
-            </p>
-          </div>
+        <section className="border-b pb-3 pt-2 text-[11px] text-gray-900">
+          <table className="w-full border-collapse table-fixed">
+            <tbody>
+              <tr className="align-top">
+                {/* Inventory summary */}
+                <td className="w-1/3 pr-3 align-top">
+                  <p className="font-semibold uppercase text-gray-700 mb-1">
+                    Inventory summary
+                  </p>
+                  <p>Total tools &amp; kits: {summary.totalTools}</p>
+                  <p>Audited (current cycle): {summary.toolsAudited}</p>
+                  <p>Remaining: {summary.remainingTools}</p>
+                  <p>Completion: {completion}%</p>
+                </td>
 
-          <div className="space-y-1">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-700">
-              Breakdown
-            </p>
-            <p>
-              Individual tools:{" "}
-              <span className="font-medium">
-                {summary.individualToolsTotal}
-              </span>
-            </p>
-            <p>
-              Toolkits:{" "}
-              <span className="font-medium">{summary.toolkitsTotal}</span>
-            </p>
-            <p>
-              Audit runs shown:{" "}
-              <span className="font-medium">{columns.length}</span>
-            </p>
-          </div>
+                {/* Breakdown */}
+                <td className="w-1/3 px-3 align-top">
+                  <p className="font-semibold uppercase text-gray-700 mb-1">
+                    Breakdown
+                  </p>
+                  <p>Individual tools: {summary.individualToolsTotal}</p>
+                  <p>Toolkits: {summary.toolkitsTotal}</p>
+                  <p>Audit runs shown: {columns.length}</p>
+                </td>
 
-          <div className="space-y-0.5 text-left">
-            <p>
-              Cycle:{" "}
-              <span className="font-medium">{auditMeta.cycleNumber ?? "—"}</span>
-              {auditMeta.maxCycles ? ` / ${auditMeta.maxCycles}` : ""}
-            </p>
-            <p>
-              Status:{" "}
-              <span className="font-medium capitalize">
-                {auditMeta.auditStatus.replace("_", " ")}
-              </span>
-            </p>
-            <p>
-              Next audit due:{" "}
-              <span className="font-medium">{nextAuditDisplay || "—"}</span>
-            </p>
-            <p>
-              Generated:{" "}
-              <span className="font-medium">
-                {generatedDate.toLocaleDateString()}{" "}
-                {generatedDate.toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </span>
-            </p>
-          </div>
+                {/* Audit meta */}
+                <td className="w-1/3 pl-3 align-top">
+                  <p className="font-semibold uppercase text-gray-700 mb-1">
+                    Audit cycle
+                  </p>
+                  <p>
+                    Cycle: {auditMeta.cycleNumber ?? "—"}
+                    {auditMeta.maxCycles ? ` / ${auditMeta.maxCycles}` : ""}
+                  </p>
+                  <p>Status: {auditMeta.auditStatus.replace("_", " ")}</p>
+                  <p>Next audit due: {nextAuditDisplay || "—"}</p>
+                  <p>
+                    Generated: {generatedDate.toLocaleDateString()}{" "}
+                    {generatedDate.toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </section>
 
         {/* Per-QR location sections */}
         {locations.map((loc) => {
-          const toolItems = loc.items.filter(
-            (item) => item.rowType === "tool"
-          );
+          const toolItems = loc.items.filter((item) => item.rowType === "tool");
           const toolkitItems = loc.items.filter(
-            (item) => item.rowType === "toolkit" || item.rowType === "kitContent"
+            (item) =>
+              item.rowType === "toolkit" || item.rowType === "kitContent"
           );
 
           const showSignoffOnToolsTable =
@@ -378,8 +420,9 @@ export default function EQ5044ReportCard({
               {/* Location header */}
               <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="text-[11px] font-semibold uppercase tracking-wide text-gray-700">
-                  {loc.qrLocation}
+                  {qrLocationLabels[loc.qrLocation] ?? loc.qrLocation}
                 </h2>
+
                 {hasColumns && (
                   <p className="text-[10px] text-gray-500">
                     Columns: audit snapshots in chronological order
@@ -467,9 +510,7 @@ export default function EQ5044ReportCard({
                               );
                             })
                           ) : (
-                            <td className="border px-1 py-1 text-center">
-                              —
-                            </td>
+                            <td className="border px-1 py-1 text-center">—</td>
                           )}
                         </tr>
                       ))}
@@ -487,10 +528,7 @@ export default function EQ5044ReportCard({
                             </td>
                             {hasColumns ? (
                               columns.map((col) => (
-                                <td
-                                  key={col.id}
-                                  className="border px-1 py-2"
-                                >
+                                <td key={col.id} className="border px-1 py-2">
                                   &nbsp;
                                 </td>
                               ))
@@ -505,7 +543,7 @@ export default function EQ5044ReportCard({
                               className="border px-1 py-2 text-[11px] whitespace-normal break-words"
                               colSpan={3}
                             >
-                              Supervisor / Team Head (Name / ID):
+                              Supervisor / Team Hand (Name / ID):
                             </td>
                             {hasColumns ? (
                               columns.map((col) => {
@@ -594,9 +632,7 @@ export default function EQ5044ReportCard({
                         >
                           <td className="border px-1 py-1 align-top whitespace-normal break-words">
                             {item.rowType === "kitContent" ? (
-                              <span className="pl-3">
-                                • {item.description}
-                              </span>
+                              <span className="pl-3">• {item.description}</span>
                             ) : (
                               <span className="font-medium">
                                 {item.description}
@@ -624,9 +660,7 @@ export default function EQ5044ReportCard({
                               );
                             })
                           ) : (
-                            <td className="border px-1 py-1 text-center">
-                              —
-                            </td>
+                            <td className="border px-1 py-1 text-center">—</td>
                           )}
                         </tr>
                       ))}
@@ -644,10 +678,7 @@ export default function EQ5044ReportCard({
                             </td>
                             {hasColumns ? (
                               columns.map((col) => (
-                                <td
-                                  key={col.id}
-                                  className="border px-1 py-2"
-                                >
+                                <td key={col.id} className="border px-1 py-2">
                                   &nbsp;
                                 </td>
                               ))
@@ -662,7 +693,7 @@ export default function EQ5044ReportCard({
                               className="border px-1 py-2 text-[11px] whitespace-normal break-words"
                               colSpan={3}
                             >
-                              Supervisor / Team Head (Name / ID):
+                              Supervisor / Team Hand (Name / ID):
                             </td>
                             {hasColumns ? (
                               columns.map((col) => {
@@ -706,9 +737,9 @@ export default function EQ5044ReportCard({
         {/* Footer note for print */}
         <footer className="mt-4 border-t pt-2 text-[10px] text-gray-500 print:text-[9px]">
           This report is generated from ToolMate and reflects the audit history
-          for the selected main storage. Supervisor sign-off is required on every
-          6th snapshot per storage location. Greyed-out supervisor cells indicate
-          sign-off is not required for those audit runs.
+          for the selected main storage. Supervisor sign-off is required on
+          every 6th snapshot per storage location. Greyed-out supervisor cells
+          indicate sign-off is not required for those audit runs.
         </footer>
       </div>
     </div>
