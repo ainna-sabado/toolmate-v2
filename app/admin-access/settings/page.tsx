@@ -611,7 +611,7 @@ export default function StorageSettingsPage() {
                           {isEditing ? (
                             <>
                               <Button
-                                size="xs"
+                                size="sm"
                                 variant="outline"
                                 disabled={savingTypeEdit}
                                 onClick={handleSaveEditType}
@@ -619,7 +619,7 @@ export default function StorageSettingsPage() {
                                 {savingTypeEdit ? "Saving…" : "Save"}
                               </Button>
                               <Button
-                                size="xs"
+                                size="sm"
                                 variant="ghost"
                                 onClick={cancelEditType}
                               >
@@ -629,7 +629,7 @@ export default function StorageSettingsPage() {
                           ) : (
                             <>
                               <Button
-                                size="xs"
+                                size="sm"
                                 variant="ghost"
                                 className="p-1"
                                 onClick={() => startEditType(t)}
@@ -638,7 +638,7 @@ export default function StorageSettingsPage() {
                                 <Pen className="h-3 w-3" />
                               </Button>
                               <Button
-                                size="xs"
+                                size="sm"
                                 variant="ghost"
                                 className="p-1 text-red-600"
                                 disabled={deletingTypeId === t._id}
@@ -812,7 +812,7 @@ export default function StorageSettingsPage() {
                             {isEditing ? (
                               <>
                                 <Button
-                                  size="xs"
+                                  size="sm"
                                   variant="outline"
                                   disabled={savingStorageEdit}
                                   onClick={handleSaveEditStorage}
@@ -820,7 +820,7 @@ export default function StorageSettingsPage() {
                                   {savingStorageEdit ? "Saving…" : "Save"}
                                 </Button>
                                 <Button
-                                  size="xs"
+                                  size="sm"
                                   variant="ghost"
                                   onClick={cancelEditStorage}
                                 >
@@ -830,7 +830,7 @@ export default function StorageSettingsPage() {
                             ) : (
                               <>
                                 <Button
-                                  size="xs"
+                                  size="sm"
                                   variant="ghost"
                                   className="p-1"
                                   onClick={() => startEditStorage(loc)}
@@ -839,7 +839,7 @@ export default function StorageSettingsPage() {
                                   <Pen className="h-3 w-3" />
                                 </Button>
                                 <Button
-                                  size="xs"
+                                  size="sm"
                                   variant="ghost"
                                   className="p-1 text-red-600"
                                   disabled={deletingStorageId === loc._id}
@@ -974,7 +974,7 @@ export default function StorageSettingsPage() {
                                   {isEditing ? (
                                     <>
                                       <Button
-                                        size="xs"
+                                        size="sm"
                                         variant="outline"
                                         disabled={savingRowEdit}
                                         onClick={handleSaveEditRow}
@@ -982,7 +982,7 @@ export default function StorageSettingsPage() {
                                         {savingRowEdit ? "Saving…" : "Save"}
                                       </Button>
                                       <Button
-                                        size="xs"
+                                        size="sm"
                                         variant="ghost"
                                         onClick={cancelEditRow}
                                       >
@@ -992,7 +992,7 @@ export default function StorageSettingsPage() {
                                   ) : (
                                     <>
                                       <Button
-                                        size="xs"
+                                        size="sm"
                                         variant="ghost"
                                         className="p-1"
                                         onClick={() => startEditRow(qr)}
@@ -1001,7 +1001,7 @@ export default function StorageSettingsPage() {
                                         <Pen className="h-3 w-3" />
                                       </Button>
                                       <Button
-                                        size="xs"
+                                        size="sm"
                                         variant="ghost"
                                         className="p-1 text-red-600"
                                         disabled={deletingRowId === qr._id}
