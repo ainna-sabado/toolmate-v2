@@ -16,32 +16,35 @@ export const AUDIT_CYCLE_STATUSES = [
 export type AuditCycleStatus = (typeof AUDIT_CYCLE_STATUSES)[number];
 
 // ---------------------------------------------
-// 2. Schema
+// 2. Schema — SCHEDULING ONLY
 // ---------------------------------------------
 const AuditCycleSchema = new Schema(
   {
-    // Storage identification
+    // ✅ Storage identification
     mainDepartment: { type: String, required: true, trim: true },
     mainStorageName: { type: String, required: true, trim: true },
     mainStorageCode: { type: String, required: true, trim: true },
     storageType: { type: String, required: true, trim: true },
 
-    // Cycle config
+    // ✅ Audit scheduling config
     frequency: {
       type: String,
       enum: AUDIT_FREQUENCIES,
       default: "monthly",
     },
 
-    // e.g. 1..6 for your 6-cycle scheme
-    cycleNumber: { type: Number, default: 1 },
-    maxCycles: { type: Number, default: 6 },
+    // ✅ How many REQUIRED audits per year
+    // monthly = 12, quarterly = 4, custom = any value
+    maxCycles: { type: Number, default: 12 },
 
-    // Dates
+    // ✅ How many required cycles have been satisfied so far
+    cycleNumber: { type: Number, default: 0 },
+
+    // ✅ Reminder / scheduling dates
     nextAuditDate: { type: Date, required: true },
     lastAuditDate: { type: Date, default: null },
 
-    // Status (high-level)
+    // ✅ High-level scheduling status
     status: {
       type: String,
       enum: AUDIT_CYCLE_STATUSES,

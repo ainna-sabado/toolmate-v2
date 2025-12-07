@@ -1,7 +1,7 @@
 // app/dashboard/storages/view/page.tsx
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useDepartment } from "@/context/DepartmentContext";
 import { useStorageDetailDashboard } from "@/hooks/useStorageDetailDashboard";
@@ -15,8 +15,8 @@ import EQ5044ReportCard from "@/components/audit/EQ5044ReportCard";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Printer } from "lucide-react";
 
-// 👇 All your existing logic moved into an inner component
 function StorageDetailContent() {
   const searchParams = useSearchParams();
   const { mainDepartment } = useDepartment();
@@ -29,6 +29,9 @@ function StorageDetailContent() {
     mainStorageName,
     mainStorageCode,
   });
+
+  // Toggle for EQ5044 view
+  const [showReport, setShowReport] = useState(false);
 
   if (!mainStorageName || !mainStorageCode) {
     return (
@@ -97,12 +100,9 @@ function StorageDetailContent() {
 
       {/* Toolkits + donut + CTA */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Left column: toolkits summary (stretches with row height) */}
         <ToolkitsSummaryCard summary={data.toolkitsSummary} />
 
-        {/* Right column: donut chart + blue CTA stacked */}
         <div className="space-y-4">
-          {/* Donut chart */}
           <Card>
             <CardContent className="p-4">
               <h2 className="mb-2 text-sm font-semibold">
@@ -112,7 +112,6 @@ function StorageDetailContent() {
             </CardContent>
           </Card>
 
-          {/* Ready to audit CTA */}
           <Card className="border-blue-500 bg-blue-600 text-white shadow-sm">
             <CardContent className="flex flex-col gap-3 p-4">
               <div className="flex items-start gap-3">
@@ -156,19 +155,56 @@ function StorageDetailContent() {
         </div>
       </div>
 
-      {/* QR locations + EQ5044 report */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <QrLocationsProgress locations={data.qrLocations} />
-        <EQ5044ReportCard
-          mainStorageName={data.mainStorageName}
-          mainStorageCode={data.mainStorageCode}
-        />
+      {/* QR locations + EQ5044 area */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 items-start">
+        {/* Left: QR progress (self-contained) */}
+        <div>
+          <QrLocationsProgress locations={data.qrLocations} />
+        </div>
+
+        {/* Right: EQ5044 panel */}
+        <div>
+          {showReport ? (
+            <EQ5044ReportCard
+              mainDepartment={mainDepartment || ""}
+              mainStorageName={data.mainStorageName}
+              mainStorageCode={data.mainStorageCode}
+              onBack={() => setShowReport(false)}
+            />
+          ) : (
+            <Card className="flex flex-col justify-between rounded-lg border bg-white/60 p-4 shadow-sm">
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  EQ5044 Tool Inventory Control
+                </p>
+                <p className="text-xs text-gray-500">
+                  View and print the EQ5044-style inventory report for all
+                  tools, toolkits and kit contents in{" "}
+                  <span className="text-sm font-medium text-gray-900">
+                    {data.mainStorageCode || "—"}
+                  </span>
+                  .
+                </p>
+              </div>
+
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-3 w-fit gap-1 text-xs"
+                type="button"
+                onClick={() => setShowReport(true)}
+              >
+                <Printer className="h-3 w-3" />
+                Open EQ5044 Report
+              </Button>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-// 👇 Default export now just wraps content in Suspense
 export default function StorageDetailPage() {
   return (
     <Suspense

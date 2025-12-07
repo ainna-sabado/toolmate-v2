@@ -1,46 +1,40 @@
 import mongoose, { Schema, InferSchemaType, Model } from "mongoose";
 
 // ---------------------------------------------
-// 1. Schema
+// 1. Schema — REAL AUDIT HISTORY
 // ---------------------------------------------
 const AuditSnapshotSchema = new Schema(
   {
-    // 1. Storage Information
+    // ✅ Storage Information
     mainStorageName: { type: String, required: true, trim: true },
     mainStorageCode: { type: String, required: true, trim: true },
 
-    // 2. Cycle Information
+    // ✅ Link to scheduling cycle (for reminder reference only)
     cycleId: {
       type: Schema.Types.ObjectId,
       ref: "AuditCycle",
       required: true,
     },
-    cycleNumber: { type: Number, required: true },
 
-    // Link to the session that created this snapshot
-    sessionId: {
-      type: Schema.Types.ObjectId,
-      ref: "AuditSession",
-      required: true,
+    // ✅ Sequential count of how many times this storage has EVER been audited
+    // 1, 2, 3, 4, 5 → tech
+    // 6 → supervisor required
+    snapshotSequence: { type: Number, required: true },
+
+    // ✅ Supervisor sign-off (REQUIRED every 6th snapshot)
+    supervisor: {
+      name: { type: String, trim: true },
+      employeeId: { type: String, trim: true },
     },
 
-    // 3. Timestamp
+    // ✅ Timestamp of the actual audit
     snapshotDate: { type: Date, default: Date.now },
 
-    // 4. Frozen Tool and Toolkit Data (deep copies)
-    toolData: [
-      {
-        type: Object,
-      },
-    ],
+    // ✅ Frozen Tool & Toolkit Data (EQ5044 source of truth)
+    toolData: [{ type: Object }],
+    toolKitData: [{ type: Object }],
 
-    toolKitData: [
-      {
-        type: Object,
-      },
-    ],
-
-    // 5. Summary Statistics
+    // ✅ Summary Statistics
     totalTools: { type: Number, default: 0 },
     presentTools: { type: Number, default: 0 },
     needsUpdateTools: { type: Number, default: 0 },
@@ -64,4 +58,7 @@ export type AuditSnapshotDocument = InferSchemaType<
 // ---------------------------------------------
 export const AuditSnapshot: Model<AuditSnapshotDocument> =
   mongoose.models.AuditSnapshot ||
-  mongoose.model<AuditSnapshotDocument>("AuditSnapshot", AuditSnapshotSchema);
+  mongoose.model<AuditSnapshotDocument>(
+    "AuditSnapshot",
+    AuditSnapshotSchema
+  );
