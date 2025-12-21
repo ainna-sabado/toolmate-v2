@@ -6,6 +6,7 @@ import { useDepartment } from "@/context/DepartmentContext";
 import { useTools } from "@/hooks/useTools";
 import { useStorage } from "@/hooks/useStorage";
 import { useToolMeta } from "@/hooks/useToolMeta";
+import { getEffectiveStatus } from "@/lib/helpers/calibration";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,7 +46,8 @@ type ToolRow = {
   qrLocation?: string;
   storageType?: string;
   status?: string;
-  auditStatus?: string; // still exists, just not shown/filtered
+  auditStatus?: string; // still exists in data, just not shown/filtered
+  dueDate?: string | Date | null; // calibration due date
 };
 
 const TOOL_STATUS_OPTIONS = [
@@ -63,6 +65,27 @@ const PAGE_SIZE = 15;
 function toLabel(value?: string) {
   if (!value) return "";
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+// Format a date (string/Date/null) into DD MMM YY for display (e.g. 01 Jan 25)
+function formatDateForDisplay(value?: string | Date | null): string {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = d.toLocaleString("en-GB", { month: "short" }); // Jan, Feb, ...
+  const year = d.toLocaleString("en-GB", { year: "2-digit" }); // 25
+
+  return `${day} ${month} ${year}`; // 01 Jan 25
+}
+
+// Format a date (string/Date/null) into YYYY-MM-DD for <input type="date" />
+function formatDateForInput(value?: string | Date | null): string {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
 }
 
 export default function ToolsPage() {
@@ -166,6 +189,7 @@ export default function ToolsPage() {
     mainStorageCode: "",
     qrLocation: "",
     storageType: "",
+    dueDate: "", // YYYY-MM-DD for calibration due date (optional)
   });
 
   // Keep storageCode + type in sync for ADD form
@@ -221,6 +245,12 @@ export default function ToolsPage() {
         storageType: form.storageType,
       };
 
+      // Optional calibration due date
+      if (form.dueDate) {
+        // backend will convert string to Date
+        payload.dueDate = form.dueDate;
+      }
+
       const res = await fetch("/api/tools", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -243,6 +273,7 @@ export default function ToolsPage() {
         mainStorageCode: "",
         qrLocation: "",
         storageType: "",
+        dueDate: "",
       });
 
       refreshTools();
@@ -267,6 +298,7 @@ export default function ToolsPage() {
     eqNumber: "",
     qty: "1",
     status: "available", // still used in update, just not editable here
+    dueDate: "", // YYYY-MM-DD string for input
   });
 
   const openEdit = (tool: ToolRow) => {
@@ -278,6 +310,7 @@ export default function ToolsPage() {
       eqNumber: tool.eqNumber || "",
       qty: String(tool.qty ?? 1),
       status: tool.status || "available",
+      dueDate: formatDateForInput(tool.dueDate ?? null),
     });
   };
 
@@ -299,6 +332,8 @@ export default function ToolsPage() {
         category: editForm.category.trim() || undefined,
         eqNumber: editForm.eqNumber.trim() || undefined,
         qty: Number(editForm.qty) || 1,
+        // Optional calibration due date; send null when clearing
+        dueDate: editForm.dueDate ? editForm.dueDate : null,
         // status is NOT changed from here anymore
       });
 
@@ -378,6 +413,21 @@ export default function ToolsPage() {
                 type="number"
                 min="1"
                 value={form.qty}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div>
+              <label className="text-sm mb-1 block">
+                Calibration Due Date
+                <span className="text-xs text-muted-foreground ml-1">
+                  (optional)
+                </span>
+              </label>
+              <Input
+                name="dueDate"
+                type="date"
+                value={form.dueDate}
                 onChange={handleChange}
               />
             </div>
@@ -523,6 +573,7 @@ export default function ToolsPage() {
                           <TableHead>Qty</TableHead>
                           <TableHead>Main Storage</TableHead>
                           <TableHead>QR Location</TableHead>
+                          <TableHead>Cal Due</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>Actions</TableHead>
                         </TableRow>
@@ -539,11 +590,18 @@ export default function ToolsPage() {
                             <TableCell>{tool.mainStorageName || "-"}</TableCell>
                             <TableCell>{tool.qrLocation || "-"}</TableCell>
                             <TableCell>
+                              {formatDateForDisplay(tool.dueDate ?? null)}
+                            </TableCell>
+                            <TableCell>
                               <StatusBadge
                                 kind="status"
-                                value={tool.status || "available"}
+                                value={getEffectiveStatus(
+                                  tool.status,
+                                  (tool as any).dueDate
+                                )}
                               />
                             </TableCell>
+
                             <TableCell className="space-x-1">
                               <Button
                                 variant="ghost"
@@ -686,6 +744,21 @@ export default function ToolsPage() {
                     type="number"
                     min="1"
                     value={editForm.qty}
+                    onChange={handleEditChange}
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="text-sm mb-1 block">
+                    Calibration Due Date
+                    <span className="text-xs text-muted-foreground ml-1">
+                      (optional)
+                    </span>
+                  </label>
+                  <Input
+                    name="dueDate"
+                    type="date"
+                    value={editForm.dueDate}
                     onChange={handleEditChange}
                   />
                 </div>

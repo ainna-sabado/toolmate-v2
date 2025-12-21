@@ -32,8 +32,8 @@ const ToolSchema = new Schema(
     // Identification
     name: { type: String, required: true, trim: true },
 
-    brand: { type: String, trim: true },         // <-- ADDED
-    category: { type: String, trim: true },      // <-- ADDED
+    brand: { type: String, trim: true },      
+    category: { type: String, trim: true },     
 
     // eqNumber is optional
     eqNumber: { type: String, trim: true },

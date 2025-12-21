@@ -6,6 +6,10 @@ import { useDepartment } from "@/context/DepartmentContext";
 import { useToolKits } from "@/hooks/useToolKits";
 import { useStorage } from "@/hooks/useStorage";
 import { useToolMeta } from "@/hooks/useToolMeta";
+import {
+  isAnyKitContentDue,
+  getEffectiveStatus,
+} from "@/lib/helpers/calibration";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,6 +57,7 @@ type ToolKitRow = {
   status: string;
   auditStatus: string;
   contents: KitContentItem[];
+  dueDate?: string | Date | null; // toolkit-level calibration due date (optional)
 };
 
 const TOOLKIT_STATUS_OPTIONS = [
@@ -70,6 +75,27 @@ const PAGE_SIZE = 10;
 function toLabel(value?: string) {
   if (!value) return "";
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+// Format date for display as "DD MMM YY"
+function formatDateForDisplay(value?: string | Date | null): string {
+  if (!value) return "N/A";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "N/A";
+
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = d.toLocaleString("en-GB", { month: "short" }); // Jan, Feb, ...
+  const year = d.toLocaleString("en-GB", { year: "2-digit" }); // 25
+
+  return `${day} ${month} ${year}`; // 01 Jan 25
+}
+
+// Format date for <input type="date" /> as "YYYY-MM-DD"
+function formatDateForInput(value?: string | Date | null): string {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
 }
 
 export default function ToolKitsPage() {
@@ -91,7 +117,7 @@ export default function ToolKitsPage() {
   const { storages, qrLocations, loadQrLocations } = useStorage(mainDepartment);
   const { brands, categories } = useToolMeta();
 
-  // Toolkit form
+  // Toolkit form (ADD)
   const [form, setForm] = useState({
     name: "",
     kitNumber: "",
@@ -103,9 +129,10 @@ export default function ToolKitsPage() {
     qrLocation: "",
     storageType: "",
     status: "available",
+    dueDate: "", // YYYY-MM-DD for toolkit cal due (optional)
   });
 
-  // Content form (for ADD)
+  // Content form (ADD)
   const [contentForm, setContentForm] = useState({
     name: "",
     brand: "",
@@ -153,7 +180,12 @@ export default function ToolKitsPage() {
     }
 
     if (statusFilter !== "all" && statusFilter) {
-      result = result.filter((kit) => kit.status === statusFilter);
+      result = result.filter((kit) => {
+        const effectiveStatus = isAnyKitContentDue(kit.contents)
+          ? "for calibration"
+          : getEffectiveStatus(kit.status, kit.dueDate ?? null);
+        return effectiveStatus === statusFilter;
+      });
     }
 
     if (searchTerm.trim()) {
@@ -247,6 +279,11 @@ export default function ToolKitsPage() {
         status: form.status || "available",
       };
 
+      // optional toolkit calibration due date
+      if (form.dueDate) {
+        payload.dueDate = form.dueDate;
+      }
+
       const res = await fetch("/api/toolkits", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -268,6 +305,7 @@ export default function ToolKitsPage() {
         qrLocation: "",
         storageType: "",
         status: "available",
+        dueDate: "",
       });
 
       refreshKits();
@@ -278,7 +316,7 @@ export default function ToolKitsPage() {
     }
   };
 
-  // ADD Kit Content – use direct POST to the contents endpoint (old working pattern)
+  // ADD Kit Content – direct POST to contents endpoint
   const handleAddKitContent = async (kitId: string) => {
     setContentLoading(true);
     setContentError(null);
@@ -336,6 +374,7 @@ export default function ToolKitsPage() {
     brand: "",
     category: "",
     status: "available",
+    dueDate: "", // YYYY-MM-DD
   });
 
   const openEditKit = (kit: ToolKitRow) => {
@@ -346,6 +385,7 @@ export default function ToolKitsPage() {
       brand: (kit as any).brand || "",
       category: (kit as any).category || "",
       status: kit.status || "available",
+      dueDate: formatDateForInput(kit.dueDate ?? null),
     });
   };
 
@@ -367,6 +407,7 @@ export default function ToolKitsPage() {
         brand: editKitForm.brand.trim() || undefined,
         category: editKitForm.category.trim() || undefined,
         status: editKitForm.status,
+        dueDate: editKitForm.dueDate || null,
       };
 
       await updateToolkit(editingKit._id, payload);
@@ -545,6 +586,19 @@ export default function ToolKitsPage() {
             </div>
 
             <div>
+              <label className="text-sm mb-1 block">
+                Calibration Due Date{" "}
+                <span className="text-xs text-muted-foreground">(optional)</span>
+              </label>
+              <Input
+                name="dueDate"
+                type="date"
+                value={form.dueDate}
+                onChange={handleToolkitFormChange}
+              />
+            </div>
+
+            <div>
               <label className="text-sm mb-1 block">Main Storage *</label>
               <select
                 name="mainStorageName"
@@ -680,6 +734,7 @@ export default function ToolKitsPage() {
                         <TableHead>Kit #</TableHead>
                         <TableHead>Main Storage</TableHead>
                         <TableHead>QR Location</TableHead>
+                        <TableHead>Cal Due</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
@@ -688,6 +743,15 @@ export default function ToolKitsPage() {
                     <TableBody>
                       {paginatedKits.map((kit) => {
                         const isOpen = expanded === kit._id;
+
+                        let effectiveStatus = getEffectiveStatus(
+                          kit.status,
+                          kit.dueDate ?? null
+                        );
+
+                        if (isAnyKitContentDue(kit.contents)) {
+                          effectiveStatus = "for calibration";
+                        }
 
                         return (
                           <React.Fragment key={kit._id}>
@@ -699,7 +763,13 @@ export default function ToolKitsPage() {
                               </TableCell>
                               <TableCell>{kit.qrLocation || "-"}</TableCell>
                               <TableCell>
-                                <StatusBadge value={kit.status} />
+                                {formatDateForDisplay(kit.dueDate ?? null)}
+                              </TableCell>
+                              <TableCell>
+                                <StatusBadge
+                                  kind="status"
+                                  value={effectiveStatus}
+                                />
                               </TableCell>
                               <TableCell className="space-x-1">
                                 <Button
@@ -744,7 +814,7 @@ export default function ToolKitsPage() {
 
                             {isOpen && (
                               <TableRow>
-                                <TableCell colSpan={6}>
+                                <TableCell colSpan={7}>
                                   <div className="bg-muted/40 p-4 rounded-md">
                                     <h4 className="font-semibold mb-3">
                                       Kit Contents
@@ -795,9 +865,9 @@ export default function ToolKitsPage() {
                                                 </TableCell>
                                                 <TableCell>
                                                   {item.calDate
-                                                    ? new Date(
+                                                    ? formatDateForDisplay(
                                                         item.calDate
-                                                      ).toLocaleDateString()
+                                                      )
                                                     : "N/A"}
                                                 </TableCell>
                                                 <TableCell className="space-x-1">
@@ -1038,6 +1108,21 @@ export default function ToolKitsPage() {
                     }
                     options={categories}
                     placeholder="Select or type..."
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm mb-1 block">
+                    Calibration Due Date
+                    <span className="text-xs text-muted-foreground ml-1">
+                      (optional)
+                    </span>
+                  </label>
+                  <Input
+                    name="dueDate"
+                    type="date"
+                    value={editKitForm.dueDate}
+                    onChange={handleEditKitChange}
                   />
                 </div>
               </div>

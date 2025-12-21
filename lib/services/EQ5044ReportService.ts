@@ -86,7 +86,7 @@ type GetReportParams = {
 };
 
 // Limit how many historical columns we show in the grid (for print width)
-const MAX_AUDIT_COLUMNS = 8;
+const MAX_AUDIT_COLUMNS = 12;
 
 // --------------------------------------------------
 // Service
