@@ -221,6 +221,7 @@ export function useToolKits(mainDepartment?: string | null) {
   // ======================================================
   return {
     kits,
+    toolkits: kits,
     storageLocations,
     loading,
     error,
