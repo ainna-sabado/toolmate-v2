@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useDepartment } from "@/context/DepartmentContext";
+import { useRouter } from 'next/navigation';
 
 import { useTools } from "@/hooks/useTools";
 import { useStorage } from "@/hooks/useStorage";
@@ -32,7 +33,7 @@ import {
 } from "@/components/ui/dialog";
 
 import toast from "react-hot-toast";
-import { Pen, Trash2 } from "lucide-react";
+import { ArrowLeft, Pen, Trash2 } from "lucide-react";
 
 type ToolRow = {
   _id: string;
@@ -89,6 +90,7 @@ function formatDateForInput(value?: string | Date | null): string {
 }
 
 export default function ToolsPage() {
+  const router = useRouter();
   const { mainDepartment } = useDepartment();
 
   const {
@@ -355,6 +357,12 @@ export default function ToolsPage() {
 
   return (
     <div className="max-w-6xl mx-auto py-8 space-y-8">
+      <Button
+          variant="ghost"
+          onClick={() => router.push("/admin-access/dashboard")}
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" /> Back
+        </Button>
       {/* Add Tool */}
       <Card>
         <CardHeader>

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useDepartment } from "@/context/DepartmentContext";
+import { useRouter } from "next/navigation";
 
 import { useToolKits } from "@/hooks/useToolKits";
 import { useStorage } from "@/hooks/useStorage";
@@ -24,7 +25,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 
-import { ChevronDown, ChevronUp, Pen, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Pen, Trash2 } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
 import { StatusBadge } from "@/components/helpers/StatusBadge";
 import {
@@ -99,6 +100,7 @@ function formatDateForInput(value?: string | Date | null): string {
 }
 
 export default function ToolKitsPage() {
+  const router = useRouter();
   const { mainDepartment } = useDepartment();
 
   const {
@@ -523,6 +525,12 @@ export default function ToolKitsPage() {
 
   return (
     <div className="max-w-6xl mx-auto py-8 space-y-8">
+      <Button
+          variant="ghost"
+          onClick={() => router.push("/admin-access/dashboard")}
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" /> Back
+        </Button>
       {/* Add Toolkit */}
       <Card>
         <CardHeader>

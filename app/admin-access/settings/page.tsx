@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useDepartment } from "@/context/DepartmentContext";
+import { useRouter } from "next/navigation";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 
-import { Pen, Trash2 } from "lucide-react";
+import { ArrowLeft, Pen, Trash2 } from "lucide-react";
 
 // ---- Types ----
 type StorageType = {
@@ -43,6 +44,7 @@ type StorageLocation = {
 // Storage Settings Page
 // --------------------------------------------------
 export default function StorageSettingsPage() {
+  const router = useRouter();
   const { mainDepartment } = useDepartment();
 
   const [types, setTypes] = useState<StorageType[]>([]);
@@ -514,6 +516,12 @@ export default function StorageSettingsPage() {
   // -----------------------------
   return (
     <div className="p-6 space-y-6">
+      <Button
+          variant="ghost"
+          onClick={() => router.push("/admin-access/dashboard")}
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" /> Back
+        </Button>
       <div>
         <h1 className="text-2xl font-semibold">Storage Settings</h1>
         <p className="text-sm text-gray-500 mt-1">
