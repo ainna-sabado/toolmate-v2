@@ -41,7 +41,8 @@ type ToolRow = {
   qty?: number;
   status: string;
   dueDate?: string | null;
-  auditStatus?: AuditStatus; // kept optional (API still sends it)
+  // auditStatus may still exist in API, but we don't display badge for it
+  auditStatus?: AuditStatus;
 };
 
 type ToolKitRow = {
@@ -59,7 +60,7 @@ type ApiResponse = {
   toolkits: ToolKitRow[];
 };
 
-// DD MMM YY (e.g., 16 Jan 26). If missing/invalid => NEN
+// DD MMM YY (e.g., 16 Jan 26). Missing/invalid => NEN
 function formatDateDDMMMYY(d?: string | null) {
   if (!d) return "NEN";
   const dt = new Date(d);
@@ -87,7 +88,7 @@ export default function AuditClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
 
-  // Shadowboard gallery
+  // Shadowboard gallery state
   const [activeShadowIdx, setActiveShadowIdx] = useState(0);
   const [zoomOpen, setZoomOpen] = useState(false);
 
@@ -131,7 +132,7 @@ export default function AuditClient() {
         setActiveShadowIdx(0);
         setZoomOpen(false);
 
-        // init selection state (amber by default)
+        // initialize selection state (amber by default)
         const initial: Record<string, boolean> = {};
         for (const t of ctx.tools || []) initial[t._id] = false;
         setSelectedToolIds(initial);
@@ -194,9 +195,7 @@ export default function AuditClient() {
       </div>
 
       {loading && (
-        <div className="text-sm text-muted-foreground">
-          Loading audit context…
-        </div>
+        <div className="text-sm text-muted-foreground">Loading audit context…</div>
       )}
 
       {!!error && !loading && (
@@ -204,9 +203,7 @@ export default function AuditClient() {
           <CardHeader>
             <CardTitle className="text-base">Unable to load</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            {error}
-          </CardContent>
+          <CardContent className="text-sm text-muted-foreground">{error}</CardContent>
         </Card>
       )}
 
@@ -233,6 +230,7 @@ export default function AuditClient() {
 
                   return (
                     <div className="space-y-3">
+                      {/* Main image */}
                       <button
                         type="button"
                         className="relative w-full overflow-hidden rounded-xl border bg-white"
@@ -255,10 +253,12 @@ export default function AuditClient() {
                         </div>
                       </button>
 
+                      {/* Thumbnails */}
                       {images.length > 1 ? (
                         <div className="flex gap-2 overflow-x-auto pb-1">
                           {images.map((img, idx) => {
                             const isActive = idx === safeActive;
+
                             return (
                               <button
                                 key={`${img._id ?? img.url}-${img.order ?? 0}-${idx}`}
@@ -283,6 +283,7 @@ export default function AuditClient() {
                         </div>
                       ) : null}
 
+                      {/* Zoom modal */}
                       {zoomOpen ? (
                         <div
                           className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
@@ -354,9 +355,7 @@ export default function AuditClient() {
           {/* Toolkits (read-only in storage audit) */}
           {data.toolkits?.length ? (
             <div className="space-y-3">
-              <div className="text-sm font-medium">
-                Toolkits in this location
-              </div>
+              <div className="text-sm font-medium">Toolkits in this location</div>
               <div className="space-y-2">
                 {data.toolkits.map((k) => {
                   const isComplete = k.auditStatus !== "pending";
@@ -376,9 +375,7 @@ export default function AuditClient() {
                         </div>
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {isComplete
-                          ? "Toolkit audit completed"
-                          : "Audited separately"}
+                        {isComplete ? "Toolkit audit completed" : "Audited separately"}
                       </div>
                     </div>
                   );
