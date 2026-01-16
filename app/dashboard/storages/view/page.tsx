@@ -3,6 +3,7 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useDepartment } from "@/context/DepartmentContext";
 import { useStorageDetailDashboard } from "@/hooks/useStorageDetailDashboard";
 
@@ -142,14 +143,15 @@ function StorageDetailContent() {
                   </p>
                 </div>
               </div>
-
-              <Button
-                size="sm"
-                className="w-fit bg-white text-blue-700 hover:bg-blue-100 text-xs"
-                type="button"
-              >
-                Scan QR to Start Audit
-              </Button>
+              <Link href="/run-audit">
+                <Button
+                  size="sm"
+                  className="w-fit bg-white text-blue-700 hover:bg-blue-100 text-xs"
+                  type="button"
+                >
+                  Scan QR to Start Audit
+                </Button>
+              </Link>
             </CardContent>
           </Card>
         </div>

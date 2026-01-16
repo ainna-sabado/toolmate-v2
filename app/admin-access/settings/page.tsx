@@ -517,11 +517,11 @@ export default function StorageSettingsPage() {
   return (
     <div className="p-6 space-y-6">
       <Button
-          variant="ghost"
-          onClick={() => router.push("/admin-access/dashboard")}
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back
-        </Button>
+        variant="ghost"
+        onClick={() => router.push("/admin-access/dashboard")}
+      >
+        <ArrowLeft className="w-4 h-4 mr-2" /> Back
+      </Button>
       <div>
         <h1 className="text-2xl font-semibold">Storage Settings</h1>
         <p className="text-sm text-gray-500 mt-1">
