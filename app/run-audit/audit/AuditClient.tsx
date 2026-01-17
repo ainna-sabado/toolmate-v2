@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { getEffectiveStatus } from "@/lib/helpers/calibration";
 import { StatusBadge } from "@/components/helpers/StatusBadge";
 
 import {
@@ -848,7 +849,7 @@ export default function AuditClient() {
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <div className="font-medium truncate">{t.name}</div>
-                              <StatusBadge value={t.status} kind="status" />
+                              <StatusBadge value={getEffectiveStatus(t.status, t.dueDate ?? null)} kind="status" />
                             </div>
 
                             <div className="text-xs text-muted-foreground">

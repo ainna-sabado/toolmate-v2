@@ -1,4 +1,3 @@
-// components/status-badge.tsx
 "use client";
 
 import React from "react";
@@ -10,9 +9,16 @@ interface StatusBadgeProps {
   kind?: StatusKind; // "status" (tool/toolkit) or "audit"
 }
 
-function toLabel(value?: string | null) {
-  if (!value) return "";
-  return value.charAt(0).toUpperCase() + value.slice(1);
+function normalize(value?: string | null) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function titleCase(s: string) {
+  return s
+    .split(" ")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
 function getStatusClasses(value: string) {
@@ -38,7 +44,8 @@ function getAuditClasses(value: string) {
   switch (value) {
     case "present":
       return "bg-emerald-100 text-emerald-800 border border-emerald-200";
-    case "needsUpdate":
+    case "needsupdate":
+    case "needs update":
       return "bg-amber-100 text-amber-800 border border-amber-200";
     case "pending":
     default:
@@ -50,13 +57,15 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   value,
   kind = "status",
 }) => {
-  if (!value) return null;
+  const normalized = normalize(value);
+  if (!normalized) return null;
 
-  const normalized = value as string;
-  const label = toLabel(normalized);
+  const label = titleCase(normalized);
 
   const colorClasses =
-    kind === "audit" ? getAuditClasses(normalized) : getStatusClasses(normalized);
+    kind === "audit"
+      ? getAuditClasses(normalized)
+      : getStatusClasses(normalized);
 
   const baseClasses =
     "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium";

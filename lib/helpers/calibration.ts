@@ -20,12 +20,12 @@ export function isCalibrationDue(
   const diffMs = dueDate.getTime() - now.getTime();
   const diffDays = diffMs / (1000 * 60 * 60 * 24);
 
-  // “Within 7 days” also includes any date in the past
+  // “Within threshold days” also includes any date in the past
   return diffDays <= thresholdDays;
 }
 
 /**
- * Tools / Toolkits: returns the *effective* status
+ * Tools: returns the *effective* status
  * If calibration is due soon ⇒ "for calibration" (overrides any base status).
  */
 export function getEffectiveStatus(
@@ -49,4 +49,17 @@ export function isAnyKitContentDue(
 ): boolean {
   if (!contents || contents.length === 0) return false;
   return contents.some((item) => isCalibrationDue(item.calDate, thresholdDays));
+}
+
+/**
+ * Toolkits: derived status rule
+ * If ANY kit content is due ⇒ "for calibration" (overrides base status).
+ */
+export function getEffectiveToolkitStatus(
+  baseStatus: string | null | undefined,
+  contents: Array<{ calDate?: Date | string | null }> | undefined,
+  thresholdDays: number = DEFAULT_CAL_THRESHOLD_DAYS
+): string {
+  if (isAnyKitContentDue(contents, thresholdDays)) return "for calibration";
+  return baseStatus || "available";
 }

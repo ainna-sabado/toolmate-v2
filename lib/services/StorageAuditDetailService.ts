@@ -6,7 +6,10 @@ import {
   type AuditCycleStatus,
 } from "@/lib/models/AuditCycle.model";
 import { calculateAuditProgressPercent } from "@/lib/helpers/auditProgress";
-import { getEffectiveStatus, isAnyKitContentDue } from "@/lib/helpers/calibration";
+import {
+  getEffectiveStatus,
+  isAnyKitContentDue,
+} from "@/lib/helpers/calibration";
 
 export type StatusKey =
   | "available"
@@ -114,8 +117,19 @@ export default class StorageAuditDetailService {
       }
     };
 
-    tools.forEach((t: any) => bumpStatus(t.status));
-    toolkits.forEach((k: any) => bumpStatus(k.status));
+    // ✅ use effective status for tools
+    tools.forEach((t: any) => {
+      const effective = getEffectiveStatus(t.status, t.dueDate ?? null);
+      bumpStatus(effective);
+    });
+
+    // ✅ use effective status for toolkits (based on kit contents calDate)
+    toolkits.forEach((k: any) => {
+      const effective = isAnyKitContentDue(k.contents)
+        ? "for calibration"
+        : k.status || "available";
+      bumpStatus(effective);
+    });
 
     // 3) Unit counts
     const individualToolsTotal = tools.length;
